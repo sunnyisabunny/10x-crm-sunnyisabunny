@@ -1,0 +1,99 @@
+<!doctype html>
+<!-- data-page tells js/app.js which page this is, so the auth guard and the
+     navigation can both work from identical markup on every page. -->
+<html lang="en" data-page="signup" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign Up — 10X CRM</title>
+  <meta name="description" content="Create a 10X CRM account.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+
+  <!-- Loaded here, not deferred: the guard must redirect an already-logged-in
+       visitor before this page is painted. See the comment in js/app.js. -->
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</head>
+
+<body>
+  <main class="auth">
+    <div class="auth__card">
+      <a class="auth__brand" href="index.html">10X CRM</a>
+
+      <div class="window">
+        <div class="window__bar">
+          <span class="window__title">SIGNUP.EXE</span>
+          <div class="window__controls">
+            <span class="window__btn" aria-hidden="true">_</span>
+            <span class="window__btn" aria-hidden="true">&#9633;</span>
+            <span class="window__btn" aria-hidden="true">&#10005;</span>
+          </div>
+        </div>
+
+        <div class="window__body">
+          <h1 class="auth__heading">Create your account</h1>
+
+          <!-- novalidate turns off the browser's own validation bubbles so that
+               our JavaScript rules, and the exact error wording the assignment
+               specifies, are the only thing the user ever sees. -->
+          <form id="signup-form" class="stack" novalidate>
+            <div class="field">
+              <label class="field__label" for="fullName">Full Name</label>
+              <input class="input" id="fullName" name="fullName" type="text" autocomplete="name">
+              <p class="field__error" data-error-for="fullName"></p>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="email">Email</label>
+              <input class="input" id="email" name="email" type="text" autocomplete="email">
+              <p class="field__error" data-error-for="email"></p>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="company">Company</label>
+              <input class="input" id="company" name="company" type="text"
+                     autocomplete="organization" placeholder="Company (optional)">
+              <p class="field__error" data-error-for="company"></p>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="password">Password</label>
+              <input class="input" id="password" name="password" type="password"
+                     autocomplete="new-password">
+              <p class="field__error" data-error-for="password"></p>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="confirmPassword">Confirm Password</label>
+              <input class="input" id="confirmPassword" name="confirmPassword" type="password"
+                     autocomplete="new-password">
+              <p class="field__error" data-error-for="confirmPassword"></p>
+            </div>
+
+            <button class="btn btn--primary btn--block" type="submit">Create Account</button>
+          </form>
+
+          <p class="auth__footer">
+            Already have an account? <a href="index.html">Log in</a>
+          </p>
+        </div>
+      </div>
+
+      <p class="auth__boot">crm.users &mdash; registering new operator</p>
+    </div>
+  </main>
+
+  <!-- Page scripts sit at the end of the body, so the form elements they look
+       for already exist and no DOMContentLoaded wrapper is needed. -->
+  <script src="js/ui.js"></script>
+  <script src="js/auth.js"></script>
+</body>
+</html>
