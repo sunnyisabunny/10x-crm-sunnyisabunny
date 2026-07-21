@@ -1,0 +1,868 @@
+/* ============================================================
+   10X CRM — Components
+   Window chrome, buttons, inputs, badges, chips, cards, modals,
+   toasts, navigation, stats and the pipeline bar.
+   Depends on tokens.css + base.css.
+   ============================================================ */
+
+/* ============================================================
+   1. WINDOW CHROME — the signature component
+   Every panel, card and modal in the app is a "window": a bevelled
+   box with a gradient title bar and Win2K control buttons. This is
+   what makes the aesthetic structural rather than decorative.
+   ============================================================ */
+.window {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  box-shadow: var(--shadow-hard);
+}
+
+.window__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
+  background: var(--titlebar);
+  border-bottom: 2px solid var(--border);
+  color: var(--on-accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.window__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window__controls {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+/* Visually these are small Win2K-sized boxes (22x18). The ::before
+   pseudo-element expands the actual clickable area out to the 44px
+   accessibility floor without changing how they look. */
+.window__btn {
+  position: relative;
+  width: 22px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: 1px solid var(--bevel-dark);
+  box-shadow: var(--bevel-out);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  line-height: 1;
+}
+
+.window__btn::before {
+  content: "";
+  position: absolute;
+  inset: -13px;
+}
+
+.window__btn:active {
+  box-shadow: var(--bevel-in);
+}
+
+.window__btn--close:hover {
+  background: var(--danger);
+  color: var(--on-accent);
+}
+
+.window__body {
+  padding: var(--sp-5);
+}
+
+/* ============================================================
+   2. BUTTONS — physical arcade buttons
+   On :active the button translates 2px down-right and its hard shadow
+   collapses to zero, so the surface appears to sink into the page.
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--tap-min);
+  padding: var(--sp-3) var(--sp-4);
+
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+
+  color: var(--text);
+  background: var(--surface-up);
+  border: 2px solid var(--bevel-dark);
+  border-radius: var(--r-0);
+  box-shadow: var(--shadow-hard-sm);
+
+  transition: transform var(--t-snap), box-shadow var(--t-snap),
+              background var(--t-fast), color var(--t-fast);
+}
+
+.btn:hover { background: var(--surface); }
+
+.btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--bevel-dark);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn--primary:hover {
+  background: var(--accent);
+  filter: brightness(1.15);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn--danger:hover {
+  background: var(--danger);
+  color: var(--on-accent);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.btn--ghost:active { transform: translate(1px, 1px); }
+
+.btn--block { width: 100%; }
+
+.btn--sm {
+  min-height: 32px;
+  padding: var(--sp-2) var(--sp-3);
+}
+
+/* ============================================================
+   3. FORM FIELDS
+   Inputs use the INVERSE bevel of a button: they are sunk into the
+   page rather than raised out of it. That single inversion is what
+   makes an input read as "type here" and a button as "press me".
+   ============================================================ */
+.field {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.field__label {
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.input,
+.select {
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--sp-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  color: var(--text);
+  background: var(--bg-deep);
+  border: 2px solid var(--border);
+  border-radius: var(--r-0);
+  box-shadow: var(--bevel-in);
+  transition: border-color var(--t-fast);
+}
+
+.input::placeholder { color: var(--text-faint); }
+
+.input:focus-visible,
+.select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--bevel-in), 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: var(--sp-6);
+  /* Pixel-style caret drawn with two crossed gradients — no icon file. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% + 2px),
+    calc(100% - 12px) calc(50% + 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+/* Error state (P0.4): red border on the field itself, red message below. */
+.input-error,
+.input-error:focus-visible {
+  border-color: var(--danger);
+}
+
+.field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--danger);
+}
+
+.field__error::before {
+  content: "\25B8";  /* ▸ */
+  flex-shrink: 0;
+}
+
+.field__error:empty { display: none; }
+
+/* ============================================================
+   4. STATUS BADGES
+   A badge is a hard-edged pixel dot plus an uppercase text label.
+   The dot is never the only signal — the label always states the
+   status in words, so the badge works without colour perception.
+   ============================================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 2px solid currentColor;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  background: currentColor;
+  box-shadow: 0 0 var(--glow-strength) currentColor;
+}
+
+.badge--lead      { color: var(--status-lead); }
+.badge--contacted { color: var(--status-contacted); }
+.badge--won       { color: var(--status-won); }
+.badge--lost      { color: var(--status-lost); }
+
+/* ============================================================
+   5. FILTER CHIPS
+   A pressed chip flips from raised bevel to inset bevel and fills
+   with the accent, so "which filter is active" is obvious from the
+   shape alone as well as the colour.
+   ============================================================ */
+.chip {
+  min-height: var(--tap-min);
+  padding: var(--sp-2) var(--sp-4);
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  box-shadow: var(--bevel-out);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+
+.chip:hover { color: var(--text); }
+
+.chip[aria-pressed="true"] {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: var(--bevel-in);
+}
+
+/* ============================================================
+   6. AVATAR
+   Either a real API image or generated initials on a hashed accent.
+   image-rendering: pixelated keeps remote avatars consistent with the
+   sprite aesthetic instead of smoothing them.
+   ============================================================ */
+.avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: var(--bg-deep);
+  border: 2px solid var(--border);
+  image-rendering: pixelated;
+}
+
+.avatar--initials {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.avatar--lg { width: 72px; height: 72px; font-size: var(--fs-display); }
+
+/* ============================================================
+   7. CLIENT CARD
+   Lifts up-left on hover (shadow grows to compensate) and a single
+   bright scanline sweeps down the card once.
+   ============================================================ */
+.client-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: var(--sp-4);
+  align-items: center;
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  box-shadow: var(--shadow-hard-sm);
+  cursor: pointer;
+  transition: transform var(--t-snap), box-shadow var(--t-snap),
+              border-color var(--t-fast);
+}
+
+.client-card:hover {
+  transform: translate(-2px, -2px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-hard);
+}
+
+.client-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.client-card:hover::after {
+  animation: sweep 600ms steps(12, end) 1;
+}
+
+@keyframes sweep {
+  from { top: -2px;  opacity: 0.9; }
+  to   { top: 100%;  opacity: 0; }
+}
+
+.client-card__name {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+}
+
+.client-card__meta {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.client-card__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-lg);
+  color: var(--success);
+}
+
+.client-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ============================================================
+   8. MODAL / DIALOG
+   The overlay dims and desaturates the page behind. The window itself
+   opens with a CRT power-on: a flat horizontal line that snaps open
+   vertically.
+   ============================================================ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: color-mix(in srgb, var(--bg-void) 82%, transparent);
+  backdrop-filter: blur(2px) saturate(0.6);
+  animation: fade-in var(--t-fast) both;
+}
+
+.overlay[hidden] { display: none; }
+
+.modal {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow: auto;
+  animation: crt-on 240ms steps(6, end) both;
+}
+
+.modal--wide { max-width: 640px; }
+
+@keyframes crt-on {
+  0%   { transform: scaleY(0.02) scaleX(0.9); filter: brightness(3); }
+  60%  { transform: scaleY(1) scaleX(1);      filter: brightness(1.6); }
+  100% { transform: none;                     filter: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ============================================================
+   9. TOASTS (P0.4)
+   Stacked bottom-right. The draining progress bar is a visual mirror
+   of the 3s setTimeout that removes the toast, so the countdown the
+   code is running is actually visible on screen.
+   ============================================================ */
+.toast-stack {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  z-index: 2000;
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: end;
+  pointer-events: none;
+}
+
+.toast {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 280px;
+  max-width: 380px;
+  padding: var(--sp-3) var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  box-shadow: var(--shadow-hard);
+  pointer-events: auto;
+  animation: toast-in 200ms steps(4, end) both;
+}
+
+.toast--success { border-color: var(--success); }
+.toast--error   { border-color: var(--danger); }
+.toast--info    { border-color: var(--accent); }
+
+.toast__icon {
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  flex-shrink: 0;
+}
+
+.toast--success .toast__icon { color: var(--success); }
+.toast--error   .toast__icon { color: var(--danger); }
+.toast--info    .toast__icon { color: var(--accent); }
+
+.toast__msg { flex: 1; }
+
+.toast__close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.toast__close:hover { color: var(--text); border-color: var(--text); }
+
+.toast__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: currentColor;
+  animation: drain var(--toast-duration, 3000ms) linear forwards;
+}
+
+.toast--success .toast__bar { background: var(--success); }
+.toast--error   .toast__bar { background: var(--danger); }
+.toast--info    .toast__bar { background: var(--accent); }
+
+@keyframes drain {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+@keyframes toast-in {
+  from { transform: translateX(28px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+/* ============================================================
+   10. TASKBAR NAVIGATION (P0.2)
+   Identical on all three protected pages, rendered from one module.
+   ============================================================ */
+.taskbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  box-shadow: var(--bevel-out), 0 2px 0 var(--bevel-dark);
+}
+
+.taskbar__logo {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  color: var(--accent);
+  text-decoration: none;
+  padding: var(--sp-2) var(--sp-3);
+  margin-right: var(--sp-3);
+}
+
+/* Two offset colour copies jittering on steps() = chromatic glitch. */
+.taskbar__logo:hover {
+  animation: glitch 320ms steps(4, end) infinite;
+}
+
+@keyframes glitch {
+  0%   { text-shadow:  2px 0 var(--danger), -2px 0 var(--accent); }
+  33%  { text-shadow: -2px 0 var(--danger),  2px 0 var(--accent); }
+  66%  { text-shadow:  1px 0 var(--accent), -1px 0 var(--danger); }
+  100% { text-shadow: -1px 0 var(--accent),  1px 0 var(--danger); }
+}
+
+.nav-link {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-4);
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  box-shadow: var(--bevel-out);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+
+.nav-link:hover { color: var(--text); }
+
+/* Active page: filled + inset, so it reads as a pressed taskbar tab. */
+.nav-link.active {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: var(--bevel-in);
+}
+
+.taskbar__spacer { flex: 1; }
+
+.icon-btn {
+  min-width: var(--tap-min);
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-2) var(--sp-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  box-shadow: var(--bevel-out);
+}
+
+.icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+.icon-btn:active { box-shadow: var(--bevel-in); }
+
+/* ============================================================
+   11. STAT CARDS (P3.2)
+   ============================================================ */
+.stat {
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.stat__label {
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.stat__value {
+  margin-top: var(--sp-3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-2xl);
+  line-height: 1;
+  color: var(--text);
+}
+
+.stat--accent .stat__value  { color: var(--accent); }
+.stat--success .stat__value { color: var(--success); }
+.stat--warning .stat__value { color: var(--warning); }
+
+/* ============================================================
+   12. PIPELINE BAR (P3.3 + the "mini chart" bonus in one component)
+   Hard-edged segments sized in proportion to each status count.
+   ============================================================ */
+.pipeline {
+  display: flex;
+  height: 32px;
+  border: 2px solid var(--border);
+  box-shadow: var(--bevel-in);
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+
+.pipeline__seg {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  color: var(--on-accent);
+  animation: seg-grow 500ms steps(8, end) both;
+  transform-origin: left center;
+}
+
+.pipeline__seg--lead      { background: var(--status-lead); }
+.pipeline__seg--contacted { background: var(--status-contacted); }
+.pipeline__seg--won       { background: var(--status-won); }
+.pipeline__seg--lost      { background: var(--status-lost); }
+
+@keyframes seg-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Legend below the bar — the numbers in words, so the chart is not
+   colour-only. */
+.pipeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  margin-top: var(--sp-3);
+}
+
+.pipeline-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.pipeline-legend__item::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+}
+
+.pipeline-legend__item--lead      { color: var(--status-lead); }
+.pipeline-legend__item--contacted { color: var(--status-contacted); }
+.pipeline-legend__item--won       { color: var(--status-won); }
+.pipeline-legend__item--lost      { color: var(--status-lost); }
+
+/* ============================================================
+   13. STATES — loading, empty, error (P4.2 / P4.3)
+   ============================================================ */
+.state {
+  display: grid;
+  place-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-8) var(--sp-4);
+  text-align: center;
+  border: 2px dashed var(--border);
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+}
+
+.state__msg {
+  font-family: var(--font-display);
+  font-size: var(--fs-display-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+.state--error { border-color: var(--danger); }
+.state--error .state__msg { color: var(--danger); }
+
+/* Blinking block cursor after "Loading clients..." */
+.cursor::after {
+  content: "\2588";  /* █ */
+  color: var(--accent);
+  animation: blink 1s steps(2, jump-none) infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+/* Eight-dot pixel spinner built entirely from box-shadows, stepping
+   one position at a time so it ticks like a sprite. */
+.spinner {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  box-shadow:
+     14px   0   0 color-mix(in srgb, var(--accent) 80%, transparent),
+     10px  10px 0 color-mix(in srgb, var(--accent) 65%, transparent),
+      0    14px 0 color-mix(in srgb, var(--accent) 50%, transparent),
+    -10px  10px 0 color-mix(in srgb, var(--accent) 40%, transparent),
+    -14px   0   0 color-mix(in srgb, var(--accent) 30%, transparent),
+    -10px -10px 0 color-mix(in srgb, var(--accent) 20%, transparent),
+      0   -14px 0 color-mix(in srgb, var(--accent) 15%, transparent),
+     10px -10px 0 color-mix(in srgb, var(--accent) 10%, transparent);
+  animation: spin 800ms steps(8, end) infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   14. NOTES TIMELINE (P4.8)
+   ============================================================ */
+.note-list {
+  display: grid;
+  gap: var(--sp-2);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--sp-3);
+  background: var(--bg-deep);
+  border: 2px solid var(--border);
+  box-shadow: var(--bevel-in);
+}
+
+.note {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+}
+
+.note__text { font-size: var(--fs-sm); }
+
+.note__date {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* ============================================================
+   15. CRT MODE — the Konami code easter egg
+   Turns the faint ambient scanlines into a full phosphor CRT:
+   heavy lines, a slow flicker, and a green glow on all text.
+   ============================================================ */
+.crt-mode {
+  --scanline-alpha: 0.28;
+}
+
+.crt-mode body::before,
+body.crt-mode::before {
+  animation: flicker 120ms steps(2, end) infinite;
+}
+
+.crt-mode .window,
+.crt-mode .client-card,
+.crt-mode .stat {
+  text-shadow: 0 0 6px var(--success);
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.82; }
+}
+
+/* ============================================================
+   16. RESPONSIVE
+   ============================================================ */
+@media (max-width: 720px) {
+  .taskbar {
+    flex-wrap: wrap;
+    padding: var(--sp-2);
+  }
+
+  .taskbar__logo {
+    margin-right: 0;
+    font-size: var(--fs-display-sm);
+  }
+
+  .nav-link {
+    padding: var(--sp-2);
+    font-size: 8px;
+  }
+
+  .client-card {
+    grid-template-columns: 40px 1fr;
+    grid-template-areas:
+      "avatar body"
+      "actions actions";
+  }
+
+  .client-card__actions {
+    grid-area: actions;
+    justify-content: space-between;
+    padding-top: var(--sp-3);
+    border-top: 2px solid var(--border);
+  }
+
+  .avatar { width: 40px; height: 40px; }
+
+  .toast-stack {
+    left: var(--sp-2);
+    right: var(--sp-2);
+    justify-items: stretch;
+  }
+
+  .toast { min-width: 0; max-width: none; }
+}
