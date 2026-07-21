@@ -1,0 +1,221 @@
+/* ============================================================
+   10X CRM — Page layouts
+   Auth screens, dashboard grid, clients toolbar/list, profile columns.
+   Depends on tokens.css + base.css + components.css.
+   ============================================================ */
+
+/* ============================================================
+   AUTH — Login (P2.1) and Sign Up (P1.1)
+   A single centred window, max-width 420px per the PRD.
+   ============================================================ */
+.auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-5) var(--sp-4);
+}
+
+.auth__card {
+  width: 100%;
+  max-width: var(--card-max);
+}
+
+.auth__brand {
+  display: block;
+  margin-bottom: var(--sp-4);
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  color: var(--accent);
+  text-align: center;
+  text-decoration: none;
+  letter-spacing: 0.04em;
+}
+
+.auth__heading {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+  margin-bottom: var(--sp-5);
+}
+
+.auth__footer {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 2px solid var(--border);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* One short typed line on the login screen — a nod to a boot sequence
+   without making the user wait for one. */
+.auth__boot {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  text-align: center;
+  margin-top: var(--sp-3);
+}
+
+/* ============================================================
+   DASHBOARD (P3)
+   ============================================================ */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.greeting {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+
+/* Live clock (P3.1) — tabular figures stop the seconds digit from
+   shifting the whole line every tick. */
+.clock {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
+  color: var(--accent);
+}
+
+.stat-grid {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: var(--sp-5);
+}
+
+.dash-grid {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
+.recent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.recent-row:last-of-type { border-bottom: 0; }
+
+/* ============================================================
+   CLIENTS (P4.1)
+   ============================================================ */
+.toolbar {
+  display: grid;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+.toolbar__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.toolbar__search { flex: 1; min-width: 200px; }
+.toolbar__sort { max-width: 220px; }
+
+.client-list {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.result-count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* ============================================================
+   PROFILE (P5)
+   ============================================================ */
+.profile-grid {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: 320px 1fr;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .profile-grid { grid-template-columns: 1fr; }
+}
+
+.profile-id {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: center;
+  text-align: center;
+}
+
+.profile-id__name {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+}
+
+.profile-id__meta {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.danger-zone {
+  border-color: var(--danger);
+}
+
+.danger-zone .window__bar {
+  background: linear-gradient(90deg, var(--danger), var(--violet));
+}
+
+/* ============================================================
+   KEYBOARD SHORTCUT HELP (bonus)
+   ============================================================ */
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.shortcut-row:last-child { border-bottom: 0; }
+
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text);
+  background: var(--surface-up);
+  border: 2px solid var(--bevel-dark);
+  box-shadow: var(--bevel-out);
+}

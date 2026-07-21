@@ -1,0 +1,169 @@
+/* ============================================================
+   10X CRM — Design tokens
+   Visual direction: "Cyber Chrome" — Windows 2000 / WinAmp window
+   chrome rendered in cyber-futurist neon, with pixel-art accents.
+
+   Every colour, size, and duration in this project comes from a token
+   defined here. No component file may hardcode a raw value. Changing a
+   token here changes it everywhere, which is what makes the dark/light
+   toggle (P0.3) a single class swap on <html>.
+   ============================================================ */
+
+:root {
+  /* ---- Typography -------------------------------------------
+     Three families, each with a real fallback so that the app stays
+     legible if the webfonts fail to load (e.g. offline demo).
+     --font-display is a pixel font: it is only ever used at 10-12px
+     for short strings (logo, labels, badges). Long text uses --font-ui. */
+  --font-display: "Press Start 2P", "Courier New", ui-monospace, monospace;
+  --font-ui: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+
+  --fs-display-sm: 10px;   /* pixel font: badges, labels, buttons */
+  --fs-display: 12px;      /* pixel font: logo, window titles */
+  --fs-xs: 11px;
+  --fs-sm: 13px;
+  --fs-base: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 24px;
+  --fs-2xl: 32px;
+
+  --lh-tight: 1.2;
+  --lh-base: 1.55;
+
+  /* ---- Spacing: strict 4px pixel grid ------------------------
+     A pixel-art aesthetic falls apart on half-pixel values, so every
+     gap and padding in the app snaps to this scale. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* ---- Radii: hard edges are the signature --------------------
+     Nothing in this design system is rounder than 4px. */
+  --r-0: 0px;
+  --r-1: 2px;
+  --r-2: 4px;
+
+  /* ---- Motion -------------------------------------------------
+     --t-snap uses steps() rather than a smooth curve. That makes
+     movement advance frame-by-frame like an animated sprite instead
+     of gliding, which is what sells the retro feel. */
+  --t-snap: 90ms steps(3, end);
+  --t-fast: 140ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  --t-med: 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
+
+  /* ---- Layout -------------------------------------------------- */
+  --tap-min: 44px;          /* accessibility floor for any control */
+  --shell-max: 1200px;
+  --card-max: 420px;        /* auth card width, per P1.1 */
+}
+
+/* ============================================================
+   DARK THEME — the default (PRD P0.3 specifies dark as default)
+   Deep near-black surfaces with neon accents.
+   ============================================================ */
+:root,
+[data-theme="dark"] {
+  --bg-void: #05060A;       /* page background */
+  --bg-deep: #0A0D16;       /* inset wells, input backgrounds */
+  --surface: #10141F;       /* window and card bodies */
+  --surface-up: #171D2C;    /* hovered / raised surfaces */
+
+  --bevel-light: #3A4560;   /* top-left highlight of a raised bevel */
+  --bevel-dark: #04050A;    /* bottom-right shadow of a raised bevel */
+  --border: #2A3347;
+
+  --text: #E6ECFF;
+  --text-dim: #8A97B8;
+  --text-faint: #5A6480;
+
+  /* Neon accent ramp */
+  --cyan: #00F0FF;          /* primary action, focus, links */
+  --magenta: #FF2E97;       /* destructive, errors */
+  --lime: #B6FF3C;          /* success */
+  --amber: #FFB627;         /* warning, in-progress */
+  --violet: #A855F7;        /* brand, title-bar gradient partner */
+
+  /* Text colour placed on top of a solid neon fill */
+  --on-accent: #05060A;
+
+  --grid-line: rgba(42, 51, 71, 0.4);
+  --scanline-alpha: 0.035;
+  --glow-strength: 10px;
+}
+
+/* ============================================================
+   LIGHT THEME — "Y2K frosted chrome"
+   Translucent icy blue-white: iMac G3 / WinAmp candy plastic.
+   Accents are darkened so that white text on a filled control and
+   accent-coloured text on --surface both clear 4.5:1 contrast.
+   ============================================================ */
+[data-theme="light"] {
+  --bg-void: #DCE4F0;
+  --bg-deep: #E8EEF7;
+  --surface: #F4F7FC;
+  --surface-up: #FFFFFF;
+
+  --bevel-light: #FFFFFF;
+  --bevel-dark: #A8B4CC;
+  --border: #9AA8C4;
+
+  --text: #0A1020;
+  --text-dim: #3D4A66;
+  --text-faint: #6A7691;
+
+  --cyan: #00708A;
+  --magenta: #B01060;
+  --lime: #3F7000;
+  --amber: #8A5600;
+  --violet: #6B21C8;
+
+  --on-accent: #FFFFFF;
+
+  --grid-line: rgba(154, 168, 196, 0.3);
+  --scanline-alpha: 0.02;
+  --glow-strength: 0px;
+}
+
+/* ============================================================
+   SEMANTIC ALIASES
+   Components reference these, never the raw colour names. That means
+   "Contacted should be violet instead of amber" is a one-line change
+   here, and every badge, chip, select and pipeline segment follows.
+   ============================================================ */
+:root {
+  --status-lead: var(--cyan);
+  --status-contacted: var(--amber);
+  --status-won: var(--lime);
+  --status-lost: var(--magenta);
+
+  --accent: var(--cyan);
+  --danger: var(--magenta);
+  --success: var(--lime);
+  --warning: var(--amber);
+
+  /* ---- Bevels: the Win2K chrome effect ----------------------
+     A raised control is light on the top-left and dark on the
+     bottom-right. A pressed or inset control is the exact inverse.
+     Swapping --bevel-out for --bevel-in is what makes a button feel
+     physically depressed. */
+  --bevel-out: inset 1px 1px 0 var(--bevel-light),
+               inset -1px -1px 0 var(--bevel-dark);
+  --bevel-in: inset -1px -1px 0 var(--bevel-light),
+              inset 1px 1px 0 var(--bevel-dark);
+
+  /* Offset shadows with ZERO blur — a blurred shadow would break the
+     pixel-art illusion immediately. */
+  --shadow-hard: 4px 4px 0 var(--bevel-dark);
+  --shadow-hard-sm: 2px 2px 0 var(--bevel-dark);
+  --shadow-hard-lg: 6px 6px 0 var(--bevel-dark);
+
+  /* The active-window title bar gradient — the single most
+     recognisable Windows 2000 cue in the whole system. */
+  --titlebar: linear-gradient(90deg, var(--violet), var(--cyan));
+}
