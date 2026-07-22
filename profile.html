@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en" data-page="profile" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profile — 10X CRM</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</head>
+
+<body>
+  <nav class="taskbar">
+    <a class="taskbar__logo" href="dashboard.html">10X CRM</a>
+    <a class="nav-link" href="dashboard.html" data-nav="dashboard">Dashboard</a>
+    <a class="nav-link" href="clients.html" data-nav="clients">Clients</a>
+    <a class="nav-link" href="profile.html" data-nav="profile">Profile</a>
+    <span class="taskbar__spacer"></span>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch theme">☀</button>
+    <button class="icon-btn" type="button" data-logout>Logout</button>
+  </nav>
+
+  <main class="shell">
+    <div class="page-head">
+      <h1 class="page-title">Profile</h1>
+    </div>
+
+    <div class="profile-grid">
+      <!-- Identity block (P5.1). The avatar is the user's initials rather than
+           an uploaded image — no file upload is in scope. -->
+      <div class="window">
+        <div class="window__bar"><span class="window__title">USER.DAT</span></div>
+        <div class="window__body">
+          <div class="profile-id">
+            <div class="avatar avatar--initials avatar--lg" id="id-avatar"></div>
+            <div class="profile-id__name" id="id-name"></div>
+            <div class="profile-id__meta" id="id-email"></div>
+            <div class="profile-id__meta" id="id-company"></div>
+            <div class="mono text-faint" id="id-since" style="font-size: var(--fs-xs)"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <!-- Edit profile (P5.2) -->
+        <div class="window">
+          <div class="window__bar"><span class="window__title">EDIT_PROFILE</span></div>
+          <div class="window__body">
+            <form id="profile-form" class="stack" novalidate>
+              <div class="field">
+                <label class="field__label" for="fullName">Full Name</label>
+                <input class="input" id="fullName" name="fullName" type="text" autocomplete="name">
+                <p class="field__error" data-error-for="fullName"></p>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="company">Company</label>
+                <input class="input" id="company" name="company" type="text"
+                       autocomplete="organization" placeholder="Company (optional)">
+                <p class="field__error" data-error-for="company"></p>
+              </div>
+
+              <button class="btn btn--primary" type="submit" style="justify-self: start">Save Changes</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Change password (P5.3) -->
+        <div class="window">
+          <div class="window__bar"><span class="window__title">CHANGE_PASSWORD</span></div>
+          <div class="window__body">
+            <form id="password-form" class="stack" novalidate>
+              <div class="field">
+                <label class="field__label" for="currentPassword">Current Password</label>
+                <input class="input" id="currentPassword" name="currentPassword"
+                       type="password" autocomplete="current-password">
+                <p class="field__error" data-error-for="currentPassword"></p>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="newPassword">New Password</label>
+                <input class="input" id="newPassword" name="newPassword"
+                       type="password" autocomplete="new-password">
+                <p class="field__error" data-error-for="newPassword"></p>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="confirmPassword">Confirm New Password</label>
+                <input class="input" id="confirmPassword" name="confirmPassword"
+                       type="password" autocomplete="new-password">
+                <p class="field__error" data-error-for="confirmPassword"></p>
+              </div>
+
+              <button class="btn btn--primary" type="submit" style="justify-self: start">Change Password</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Data management (P5.4). Given its own red-gradient window so a
+             destructive action never looks like an ordinary form. -->
+        <div class="window danger-zone">
+          <div class="window__bar"><span class="window__title">DATA_MANAGEMENT</span></div>
+          <div class="window__body stack">
+            <p style="font-size: var(--fs-base); line-height: var(--lh-base)">
+              Clears every client and reloads the original records from the API.
+              Your account and your session are not affected.
+            </p>
+            <button class="btn btn--danger" type="button" id="reset-btn"
+                    style="justify-self: start">Reset CRM Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/ui.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/profile.js"></script>
+</body>
+</html>
