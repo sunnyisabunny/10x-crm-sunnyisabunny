@@ -3,26 +3,44 @@
  *
  * ONE CANVAS, TWO ATMOSPHERES.
  *
- * The two themes in this app are not the same design recoloured, so they do
- * not get the same background. Dark is "Cyber Chrome": neon on near-black,
- * and it rains code. Light is "Soft Club, Haunted": a cold, drained,
- * late-nineties frosted interface standing in a fogbank, with things pressing
- * through the fog from behind it.
+ * The two themes are not the same design recoloured, so they do not get the
+ * same background. Dark is "Cyber Chrome": neon on near-black, and it rains
+ * code. Light is "Soft Club, Haunted": a cold, drained, late-nineties frosted
+ * interface standing in a fogbank, with things pressing through the fog from
+ * behind it.
  *
- * Both are painted by this file, onto the same fixed full-screen canvas at
+ * Both are painted by this file onto the same fixed full-screen canvas at
  * z-index -1, and the painter is swapped when the theme changes. Everything
- * that is genuinely shared — sizing the canvas for the display, pausing in a
- * background tab, honouring reduced motion, reading colours out of the theme —
- * is written once and used by both.
+ * genuinely shared — sizing the canvas for the display, throttling to a sane
+ * frame rate, pausing in a background tab, honouring reduced motion, reading
+ * colours out of the theme — is written once and used by both.
+ *
+ * WHAT EACH ATMOSPHERE IS MADE OF
+ *
+ *   DARK — the rain. One column per glyph-width across the window, each column
+ *   a falling head of near-white with a fading phosphor tail. A glyph is
+ *   painted once per row it crosses and then left to fade, which is the whole
+ *   trick behind it being legible (see drawRain).
+ *
+ *   LIGHT — the haunt. Three things share the canvas, back to front: a drifting
+ *   fogbank; a small pool of apparitions (up to five at once — real face and
+ *   hand textures from an atlas, each cut into slices and warped so it reads as
+ *   pressing THROUGH the fog rather than sitting on it); and a separate, slower
+ *   layer of bloody handprints that simply appear on the glass with nothing
+ *   shown making them. The Konami code triggers a "breach" that floods the
+ *   whole thing (setHauntBreach).
  *
  * WHY A CANVAS AT ALL
  * The rain started as pure CSS: thin vertical gradients scrolling downwards.
  * It moved, but it had no characters in it, so it read as stripes rather than
  * as falling code. Real rain needs individual glyphs that change as they fall,
  * and CSS cannot draw text it was never given. The same argument applies twice
- * over to the apparitions: CSS has no way to draw a hand.
+ * over to the apparitions: CSS has no way to draw a warped, sliced hand.
  *
- * Loaded on all six pages, after app.js.
+ * Loaded on all six pages, after app.js. It reads two shared globals that
+ * app.js owns — isRedirecting (the auth guard's verdict) and the theme — and
+ * exposes two of its own for app.js to call: syncAtmosphere() on a theme
+ * change and setHauntBreach() for the easter egg.
  */
 
 /* ============================================================
@@ -295,17 +313,27 @@ function drawRain() {
 /* ============================================================
    ATMOSPHERE 2 — THE HAUNT (light theme)
 
-   Three things happen on this canvas, back to front:
+   Painted back to front every frame:
 
      far fog        slow banks, established first so there is depth
-     the apparition rises out of the far fog, presses, recedes
-     near fog       painted OVER it, so it never fully resolves
+     apparitions    a POOL of them (up to HAUNT_MAX) rising out of the far fog,
+                    pressing, and receding — each on its own clock and phase
+     near fog       painted OVER them, so they never fully resolve
 
    That sandwich is the whole illusion. A figure drawn on top of fog is a
-   sticker; a figure drawn INSIDE fog is something in the room.
+   sticker; a figure drawn INSIDE fog is something in the room. The figures
+   themselves are real textures lifted from an atlas (see the APPARITION_*
+   constants) and cut into horizontal slices that are pushed sideways by a
+   travelling sine wave — the "membrane" warp that sells them as pushing
+   against a surface rather than fading in.
 
-   Handprints are deliberately not part of that cycle — they are their own
-   slow layer, on their own clock, and nothing is ever shown making them.
+   Handprints are deliberately NOT part of that cycle. They are their own
+   slower layer, on their own clock, and nothing is ever shown making them —
+   which is worse than showing a cause, because there isn't one.
+
+   The whole thing has a loud switch: setHauntBreach() (the light theme's
+   Konami easter egg) lifts the opacity, raises the cap, and shortens every
+   gap, so the ambient haunt becomes a flood.
    ============================================================ */
 
 /* How faint the whole layer is. Raised from 0.5: at that level the figures
@@ -348,15 +376,15 @@ const APPARITION_PRINT_LAST = 23;
    enough that the per-frame gradient work stays trivial. */
 const FOG_COUNT = 5;
 
-/* Seconds an apparition takes from first surfacing to gone. Shortened along
-   with the gap below so the whole cycle turns over faster. */
+/* Seconds an apparition takes from first surfacing to gone. */
 const HAUNT_LIFE = 8;
 
-/* Seconds of empty fog between apparitions, minimum and extra-random. Cut down
-   so figures arrive noticeably more often — the room is more active than it
-   was, while a little irregularity is kept so it never pulses in time. */
-const HAUNT_GAP_MIN = 4;
-const HAUNT_GAP_VAR = 7;
+/* Seconds of empty fog between arrivals, minimum and extra-random. Cut down
+   again — the room should feel crowded, not merely occupied — with just enough
+   jitter left that arrivals never fall into a fixed beat. Combined with the
+   raised cap below, three to five figures are usually present at once. */
+const HAUNT_GAP_MIN = 2;
+const HAUNT_GAP_VAR = 4;
 
 /* How far a slice can be pushed sideways, as a fraction of the figure's own
    width. Rendered across a range and looked at before it was chosen: below
@@ -371,11 +399,11 @@ const HAUNT_WARP_FRAC = 0.07;
 const HAUNT_SLICES = 26;
 
 /* How many figures may be on screen at once, calm and during a breach.
-   The haunt used to be a single figure at a time; the founder asked for more,
-   so it is a small pool now. Kept low in the calm state so the room is active
-   without being a crowd, and opened up under breach. */
-const HAUNT_MAX = 3;
-const HAUNT_MAX_BREACH = 6;
+   The haunt began as a single figure at a time and has been opened up twice on
+   request — the room is meant to be busy now. The breach cap is high enough
+   that the easter egg reads as a genuine flood rather than just "a bit more". */
+const HAUNT_MAX = 5;
+const HAUNT_MAX_BREACH = 10;
 
 /* How tall a figure stands, as a fraction of the viewport.
 
@@ -397,8 +425,8 @@ const HAUNT_VAR_H = 0.11;
    more unpleasant than showing the cause, because there isn't one. They run
    on their own clock and the two layers never coordinate. */
 const HAUNT_PRINT_LIFE = 18;
-const HAUNT_PRINT_GAP_MIN = 6;
-const HAUNT_PRINT_GAP_VAR = 10;
+const HAUNT_PRINT_GAP_MIN = 4;
+const HAUNT_PRINT_GAP_VAR = 7;
 
 /* Prints are drawn at a fraction of viewport height, and never warped: a mark
    on the glass is on the glass, and wobbling it would say it was behind. */

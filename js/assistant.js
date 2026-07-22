@@ -79,9 +79,15 @@ const RONIN_ANIMATIONS = {
 
 /* How big he is drawn on screen. The sheet cell is 158x120; drawing him
    smaller than that keeps the pixels crisp, because shrinking pixel art is
-   far kinder to it than blowing it up. */
-const RONIN_DRAW_W = 104;
-const RONIN_DRAW_H = 79;
+   far kinder to it than blowing it up.
+
+   Enlarged to stand the same HEIGHT as the light theme's survivor (104px),
+   who was the right size and the reference. His frame is landscape where the
+   survivor's is portrait, so matching height makes him wider, not taller —
+   137x104 keeps the exact 158:120 aspect and is still a downscale. His
+   reserved strip in tokens.css was widened to match. */
+const RONIN_DRAW_W = 137;
+const RONIN_DRAW_H = 104;
 
 /* ------------------------------------------------------------------
    THE LIGHT THEME'S ASSISTANT

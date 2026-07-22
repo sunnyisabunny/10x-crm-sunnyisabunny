@@ -311,14 +311,14 @@ img { max-width: 100%; display: block; }
   side and he stands in it. The overlap only begins once those natural margins
   are narrower than the strip he needs, which is at:
 
-      1200px of shell  +  136px of strip on each side  =  1472px
+      1200px of shell  +  170px of strip on each side  =  1540px
 
   So below that width the shell is pushed right by the difference. Above it,
   nothing happens, because nothing needs to. Below 720px he hides entirely
   (see components.css) and the padding goes with him, because a phone has no
   room to give away.
 */
-@media (min-width: 721px) and (max-width: 1471px) {
+@media (min-width: 721px) and (max-width: 1539px) {
   .shell {
     padding-left: calc(var(--sp-4) + var(--ronin-strip));
   }
