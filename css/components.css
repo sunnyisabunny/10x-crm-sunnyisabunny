@@ -1114,6 +1114,89 @@ body.crt-mode h3 {
 }
 
 /* ============================================================
+   15b. RONIN — the pixel assistant
+   Bottom-LEFT on purpose: the toast stack owns the bottom-right corner, and
+   two fixed elements in the same corner would sit on top of each other.
+   ============================================================ */
+.ronin {
+  position: fixed;
+  left: var(--sp-4);
+  bottom: var(--sp-4);
+  /* Above the page, below modals (1000) and toasts (2000), so he never
+     covers something the user is being asked to read. */
+  z-index: 900;
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  pointer-events: none;
+}
+
+.ronin__btn {
+  padding: 0;
+  background: none;
+  border: 0;
+  line-height: 0;
+  pointer-events: auto;
+  transition: transform var(--t-fast);
+}
+
+.ronin__btn:hover { transform: translateY(-3px) scale(1.04); }
+.ronin__btn:active { transform: translateY(0) scale(0.98); }
+
+/* drop-shadow follows the sprite's alpha channel, so the glow hugs his
+   silhouette instead of boxing the whole canvas — which is exactly what
+   box-shadow would have done here. */
+.ronin__canvas {
+  display: block;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 55%, transparent))
+          drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));
+}
+
+.ronin__bubble {
+  position: relative;
+  max-width: 264px;
+  padding: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--phosphor);
+  background: var(--bg-deep);
+  border: 1px solid var(--phosphor);
+  border-radius: var(--r-3);
+  box-shadow: var(--bloom-md) var(--phosphor), var(--lift);
+  pointer-events: auto;
+}
+
+.ronin__bubble[hidden] { display: none; }
+
+/* The block cursor that terminals blink at the end of a line. */
+.ronin__bubble::after {
+  content: "\2588";
+  margin-left: 2px;
+  animation: blink-caret 900ms steps(2, end) infinite;
+}
+
+@keyframes blink-caret {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+/* The little tail pointing down at him. */
+.ronin__bubble::before {
+  content: "";
+  position: absolute;
+  left: 24px;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  background: var(--bg-deep);
+  border-right: 1px solid var(--phosphor);
+  border-bottom: 1px solid var(--phosphor);
+  transform: rotate(45deg);
+}
+
+/* ============================================================
    16. RESPONSIVE
    ============================================================ */
 @media (max-width: 720px) {
@@ -1131,6 +1214,11 @@ body.crt-mode h3 {
     padding: var(--sp-2);
     font-size: 8px;
   }
+
+  /* RONIN stands down on small screens. He is 96px wide and fixed to the
+     bottom-left, which on a phone means sitting directly on top of the
+     client list rather than beside it. */
+  .ronin { display: none; }
 
   .client-card {
     grid-template-columns: 40px 1fr;
