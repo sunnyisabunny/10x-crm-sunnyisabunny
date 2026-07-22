@@ -579,6 +579,7 @@ function buildFindings(clients, metrics) {
       title: `${neglected.length} open deal${neglected.length === 1 ? '' : 's'} untouched for ${NEGLECT_DAYS}+ days`,
       hint: 'No note, no change, no contact. These go cold next.',
       rows: neglected.slice(0, FINDINGS_LIMIT).map((row) => ({
+        id: row.client.id,
         name: row.client.name,
         meta: `${row.days} days quiet`,
         value: row.client.dealValue,
@@ -595,6 +596,7 @@ function buildFindings(clients, metrics) {
       title: `${stalled.length} deal${stalled.length === 1 ? '' : 's'} open more than ${STALL_FACTOR}x your ${metrics.cycleDays}-day cycle`,
       hint: 'Long past the point where deals like these normally close.',
       rows: stalled.slice(0, FINDINGS_LIMIT).map((row) => ({
+        id: row.client.id,
         name: row.client.name,
         meta: `${row.days} days open`,
         value: row.client.dealValue,
@@ -611,6 +613,7 @@ function buildFindings(clients, metrics) {
       title: `${Math.round(concentration.share * 100)}% of won revenue comes from one client`,
       hint: 'Losing this account would take most of the revenue with it.',
       rows: [{
+        id: concentration.client.id,
         name: concentration.client.name,
         meta: `${Math.round(concentration.share * 100)}% of all revenue won`,
         value: concentration.client.dealValue,

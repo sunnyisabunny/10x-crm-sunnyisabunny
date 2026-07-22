@@ -251,6 +251,39 @@ function createStateBlock(message, { error = false, extra = null, spinner = fals
  * act on instead of an empty screen and an error in a console they will never
  * open. The Retry button simply calls this function again.
  */
+/**
+ * Open one client's details straight from the address bar.
+ *
+ * RONIN's advice ends in a button that says "Open Emily Johnson", and this is
+ * what makes that button land somewhere useful instead of just on the list.
+ * The URL carries the id — clients.html?client=12 — and this reads it once the
+ * list has loaded.
+ *
+ * WHY THE URL AND NOT A SHARED VARIABLE. The assistant is navigating between
+ * two separate HTML pages, and a page navigation throws away every variable
+ * the old page had. The only things that survive are storage and the URL, and
+ * a transient "which client did you want" is not something to write to
+ * storage. It also means the link is a real link: it can be bookmarked, opened
+ * in a new tab, or pasted to a colleague.
+ *
+ * THE VALUE IS UNTRUSTED. Anyone can type anything after `client=`, so it is
+ * never used to build markup or a selector — it is turned into a number and
+ * matched against ids we already have. An id that does not exist simply does
+ * nothing, which is the right outcome for a stale bookmark.
+ */
+function openClientFromUrl() {
+  const wanted = new URLSearchParams(window.location.search).get('client');
+  if (!wanted) return;
+
+  const id = Number(wanted);
+  if (!Number.isFinite(id)) return;
+
+  const client = clients.find((item) => item.id === id);
+  if (!client) return;
+
+  openDetail(id);
+}
+
 async function initClients() {
   listEl.replaceChildren(
     createStateBlock('Loading clients...', { spinner: true })
@@ -259,6 +292,7 @@ async function initClients() {
   try {
     clients = await loadClients();
     refresh();
+    openClientFromUrl();
   } catch (error) {
     console.error('Could not load clients.', error);
 

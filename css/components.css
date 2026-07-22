@@ -1128,34 +1128,56 @@ body.crt-mode h3 {
 }
 
 /* ============================================================
-   15b. RONIN — the pixel assistant
+   15b. RONIN — the assistant
    Bottom-LEFT on purpose: the toast stack owns the bottom-right corner, and
    two fixed elements in the same corner would sit on top of each other.
+
+   Two states, driven by data-open on the root:
+     "false"  collapsed — just the character and his badge
+     "true"   expanded  — the panel is open above him
+     "aside"  a one-line reaction that closes itself
+
+   He is collapsed by default and only takes space when asked. That is what
+   lets him live on every page: an always-open panel in a corner would cover
+   a client card here, the findings terminal there.
    ============================================================ */
 .ronin {
   position: fixed;
   left: var(--sp-4);
   bottom: var(--sp-4);
-  /* Above the page, below modals (1000) and toasts (2000), so he never
-     covers something the user is being asked to read. */
+  /* Above the page, below modals (1000) and toasts (2000), so he can never
+     cover something the user is being asked to read or act on. */
   z-index: 900;
   display: grid;
   gap: var(--sp-2);
   justify-items: start;
+  /* The root ignores the mouse so the page underneath stays clickable; only
+     his button and his panel take pointer events back. Without this, an
+     invisible box in the corner would swallow clicks meant for the content. */
   pointer-events: none;
 }
 
+/* ---- The character ---------------------------------------- */
+
 .ronin__btn {
+  position: relative;
   padding: 0;
   background: none;
   border: 0;
   line-height: 0;
   pointer-events: auto;
-  transition: transform var(--t-fast);
+  cursor: pointer;
+  transition: transform var(--t-fast) ease-out;
 }
 
-.ronin__btn:hover { transform: translateY(-3px) scale(1.04); }
+.ronin__btn:hover { transform: translateY(-4px) scale(1.05); }
 .ronin__btn:active { transform: translateY(0) scale(0.98); }
+
+.ronin__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: var(--r-2);
+}
 
 /* drop-shadow follows the sprite's alpha channel, so the glow hugs his
    silhouette instead of boxing the whole canvas — which is exactly what
@@ -1167,27 +1189,104 @@ body.crt-mode h3 {
           drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));
 }
 
-.ronin__bubble {
-  position: relative;
-  max-width: 264px;
-  padding: var(--sp-3);
+/* ---- The badge -------------------------------------------- */
+
+/* A live count of things that need attention. Hidden entirely at zero rather
+   than showing "0", because a badge that is always there trains people to
+   stop seeing it. */
+.ronin__badge {
+  position: absolute;
+  top: 4px;
+  right: -2px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
   font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  line-height: 1.5;
-  color: var(--phosphor);
-  background: var(--bg-deep);
-  border: 1px solid var(--phosphor);
-  border-radius: var(--r-3);
-  box-shadow: var(--bloom-md) var(--phosphor), var(--lift);
-  pointer-events: auto;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--danger);
+  border: 1px solid color-mix(in srgb, #fff 40%, transparent);
+  border-radius: var(--r-pill);
+  box-shadow: var(--bloom-sm) var(--danger);
+  animation: ronin-badge-pulse var(--t-pulse) ease-in-out infinite;
 }
 
-.ronin__bubble[hidden] { display: none; }
+.ronin__badge[hidden] { display: none; }
+
+@keyframes ronin-badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
+
+/* ---- The panel -------------------------------------------- */
+
+.ronin__panel {
+  position: relative;
+  width: min(300px, calc(100vw - var(--sp-6) * 2));
+  padding: var(--sp-4);
+  padding-right: var(--sp-5);
+  display: grid;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text);
+  /* Solid, not glass. Everything else on these pages is translucent, but this
+     is the one surface carrying a sentence someone has to read, and rain
+     falling behind text is exactly what makes it unreadable. */
+  background: var(--surface);
+  border: 1px solid var(--phosphor);
+  border-radius: var(--r-3);
+  box-shadow: var(--bloom-md) color-mix(in srgb, var(--phosphor) 45%, transparent),
+              var(--lift);
+  pointer-events: auto;
+  animation: ronin-panel-in 240ms ease-out;
+}
+
+.ronin__panel[hidden] { display: none; }
+
+@keyframes ronin-panel-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* The severity of the advice colours the border and the heading, so the
+   seriousness of what he is saying is legible before it is read. Never colour
+   ALONE though — the wording always says it too. */
+.ronin__panel[data-level="FAIL"] {
+  border-color: var(--danger);
+  box-shadow: var(--bloom-md) color-mix(in srgb, var(--danger) 45%, transparent), var(--lift);
+}
+.ronin__panel[data-level="WARN"] {
+  border-color: var(--warning);
+  box-shadow: var(--bloom-md) color-mix(in srgb, var(--warning) 40%, transparent), var(--lift);
+}
+
+.ronin__title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--phosphor);
+}
+
+.ronin__panel[data-level="FAIL"] .ronin__title { color: var(--danger); }
+.ronin__panel[data-level="WARN"] .ronin__title { color: var(--warning); }
+
+.ronin__body {
+  margin: 0;
+  min-height: 1.2em;   /* reserve the line so the panel does not jump while typing */
+  color: var(--text-dim);
+}
 
 /* The block cursor that terminals blink at the end of a line. */
-.ronin__bubble::after {
+.ronin__body::after {
   content: "\2588";
   margin-left: 2px;
+  color: var(--phosphor);
   animation: blink-caret 900ms steps(2, end) infinite;
 }
 
@@ -1196,19 +1295,49 @@ body.crt-mode h3 {
   50%      { opacity: 0; }
 }
 
+.ronin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.ronin__actions button[hidden] { display: none; }
+
+.ronin__dismiss {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--r-2);
+  cursor: pointer;
+}
+
+.ronin__dismiss:hover { color: var(--text); background: var(--surface-up); }
+
 /* The little tail pointing down at him. */
-.ronin__bubble::before {
+.ronin__panel::before {
   content: "";
   position: absolute;
-  left: 24px;
+  left: 30px;
   bottom: -7px;
   width: 12px;
   height: 12px;
-  background: var(--bg-deep);
+  background: var(--surface);
   border-right: 1px solid var(--phosphor);
   border-bottom: 1px solid var(--phosphor);
   transform: rotate(45deg);
 }
+
+.ronin__panel[data-level="FAIL"]::before { border-color: var(--danger); }
+.ronin__panel[data-level="WARN"]::before { border-color: var(--warning); }
 
 /* ============================================================
    16. RESPONSIVE
