@@ -202,6 +202,26 @@ const KONAMI_CODE = [
   'b', 'a',
 ];
 
+/**
+ * Put the saved easter eggs back on the page.
+ *
+ * Called on every page load. Because this is a multi-page app, each navigation
+ * is a fresh <body> with neither class on it, so without re-applying the saved
+ * state here an egg would switch itself off the moment you changed pages. Both
+ * classes are set from their own saved flag; the CSS only ever draws the one
+ * that matches the current theme (CRT is scoped to dark, the breach to light),
+ * so the two can never visually stack even when both flags are on.
+ */
+function applyEggs() {
+  const eggs = getEggs();
+  document.body.classList.toggle('crt-mode', !!eggs.crt);
+  document.body.classList.toggle('breach-mode', !!eggs.breach);
+  /* The breach has a canvas half as well as a CSS half. Telling the atmosphere
+     restores the flooded opacity and cadence after a navigation; the guard
+     covers pages that never loaded atmosphere.js. */
+  if (typeof setHauntBreach === 'function') setHauntBreach(!!eggs.breach);
+}
+
 function setUpEasterEgg() {
   let pressed = [];
 
@@ -217,19 +237,25 @@ function setUpEasterEgg() {
 
     if (pressed.join(',') !== KONAMI_CODE.join(',')) return;
 
-    /* One code, two theme-appropriate surprises. The dark theme is a retro
-       machine, so its cheat is a CRT tube. The light theme is a haunting, so
-       its cheat is the haunting coming through in force. Each theme gets an
-       intensification of what it already is, rather than the same effect
-       pasted onto both. */
+    /* One code, two theme-appropriate surprises, each remembered independently.
+       The dark theme is a retro machine, so its cheat is a CRT tube; the light
+       theme is a haunting, so its cheat is the haunting coming through in
+       force. The SAVED FLAG is the source of truth — the class is toggled to
+       match it and then persisted, so a page reload or a tab switch restores
+       exactly this state, and toggling one theme's egg never disturbs the
+       other's. */
+    const eggs = getEggs();
     if (document.documentElement.dataset.theme === 'light') {
-      const on = document.body.classList.toggle('breach-mode');
-      if (typeof setHauntBreach === 'function') setHauntBreach(on);
-      showToast(on ? 'THE VEIL IS THIN' : 'IT PASSES', 'info');
+      eggs.breach = !eggs.breach;
+      saveEggs(eggs);
+      document.body.classList.toggle('breach-mode', eggs.breach);
+      if (typeof setHauntBreach === 'function') setHauntBreach(eggs.breach);
+      showToast(eggs.breach ? 'THE VEIL IS THIN' : 'IT PASSES', 'info');
     } else {
-      document.body.classList.toggle('crt-mode');
-      const on = document.body.classList.contains('crt-mode');
-      showToast(on ? 'CRT MODE ENGAGED' : 'CRT MODE OFF', 'info');
+      eggs.crt = !eggs.crt;
+      saveEggs(eggs);
+      document.body.classList.toggle('crt-mode', eggs.crt);
+      showToast(eggs.crt ? 'CRT MODE ENGAGED' : 'CRT MODE OFF', 'info');
     }
     pressed = [];
   });
@@ -277,5 +303,10 @@ if (!isRedirecting) {
   document.addEventListener('DOMContentLoaded', () => {
     setUpNavigation();
     setUpEasterEgg();
+    /* Restore any egg that was on when the last page unloaded. Runs before
+       atmosphere.js's own DOMContentLoaded handler (app.js is earlier in the
+       load order), so the breach flag is set first and the atmosphere reads it
+       correctly when it builds a moment later. */
+    applyEggs();
   });
 }

@@ -1078,8 +1078,16 @@ label.btn { cursor: pointer; }
    second stylesheet.
 
    Note the class lands on <body>, not <html>, so custom properties
-   inherit down to everything inside including body::before. */
-body.crt-mode {
+   inherit down to everything inside including body::before.
+
+   SCOPED TO THE DARK THEME. CRT mode is the dark theme's easter egg — a
+   phosphor tube belongs on a black screen, not a pale one — and the light
+   theme has its own (the breach, section 19.7). Scoping it here means the two
+   can never render at the same time: each theme's saved egg flag can be on
+   independently, but only the one matching the current theme is ever drawn, so
+   they cannot stack. The default theme always carries data-theme="dark", so
+   this matches whenever the light theme is not active. */
+[data-theme="dark"] body.crt-mode {
   --text: var(--phosphor);
   --text-dim: color-mix(in srgb, var(--phosphor) 65%, transparent);
   --text-faint: color-mix(in srgb, var(--phosphor) 40%, transparent);
@@ -1112,19 +1120,19 @@ body.crt-mode {
 /* Heavier vignette and a hard flicker on the glass. The sweep is not
    named here any more: it lives on body::after now, where it is moved
    by a transform, and it keeps running on its own. */
-body.crt-mode::before {
+[data-theme="dark"] body.crt-mode::before {
   --vignette: radial-gradient(ellipse at center, transparent 28%, rgba(0, 0, 0, 0.92) 100%);
   animation: flicker 110ms steps(2, end) infinite;
 }
 
 /* Chromatic aberration: the red and blue guns very slightly out of
    convergence, which is what makes a real tube look like a real tube. */
-body.crt-mode .window__title,
-body.crt-mode .stat__value,
-body.crt-mode .client-card__name,
-body.crt-mode h1,
-body.crt-mode h2,
-body.crt-mode h3 {
+[data-theme="dark"] body.crt-mode .window__title,
+[data-theme="dark"] body.crt-mode .stat__value,
+[data-theme="dark"] body.crt-mode .client-card__name,
+[data-theme="dark"] body.crt-mode h1,
+[data-theme="dark"] body.crt-mode h2,
+[data-theme="dark"] body.crt-mode h3 {
   text-shadow:
     0 0 10px var(--phosphor),
     -1px 0 rgba(255, 0, 90, 0.55),
