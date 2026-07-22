@@ -26,14 +26,18 @@
 const RAIN_FONT_SIZE = 16;
 
 /* How much alpha is removed from the whole canvas each frame. Higher means
-   shorter tails. 0.055 gives a tail of roughly twenty characters. */
-const RAIN_FADE = 0.055;
+   shorter tails. Lowered along with the speed below: a slower column covers
+   less ground before its trail fades, so keeping the old fade rate would have
+   left short stubs instead of long streaks. */
+const RAIN_FADE = 0.032;
 
-/* Chance per frame that a given column emits its next character. Below 1 the
-   columns fall at visibly different speeds, which is what stops the whole
-   field moving as one solid block. */
-const RAIN_MIN_SPEED = 0.25;
-const RAIN_MAX_SPEED = 0.85;
+/* Rows advanced per frame. At roughly 60 frames a second and a 16px row, the
+   range below works out at about 100-300 pixels a second — a drift rather
+   than a downpour. The spread between the two is what matters most: columns
+   moving at visibly different speeds is what stops the field reading as one
+   solid block sliding down the screen. */
+const RAIN_MIN_SPEED = 0.10;
+const RAIN_MAX_SPEED = 0.30;
 
 /* Chance per frame that a column that has run off the bottom restarts. Low, so
    columns come back staggered rather than all at once. */

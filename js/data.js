@@ -46,6 +46,9 @@ const MAX_DEAL_VALUE = 10000;
  * without it would otherwise throw and break the whole list.
  */
 function mapApiUserToClient(apiUser) {
+  const createdAt = seededCreatedAt(apiUser.id);
+  const status = seededStatus(apiUser.id);
+
   return {
     id: apiUser.id,
     name: `${apiUser.firstName} ${apiUser.lastName}`,
@@ -53,11 +56,96 @@ function mapApiUserToClient(apiUser) {
     phone: apiUser.phone,
     company: apiUser.company?.name || '',
     image: apiUser.image,
-    status: DEFAULT_STATUS,
+    status,
     dealValue: randomDealValue(),
     notes: [],
-    createdAt: new Date().toISOString(),
+    createdAt,
+    /* Only a closed deal has a closing date. Everything still open gets an
+       empty string rather than a fake one, so "how long did that take" can
+       never be answered about a deal that has not finished. */
+    closedAt: isClosedStatus(status) ? seededClosedAt(createdAt, apiUser.id) : '',
   };
+}
+
+/*
+  BACKDATING THE STARTER DATA — and why this is not cheating.
+
+  Every client used to be stamped with the moment the API call returned, so
+  all thirty carried the same date. That quietly broke everything that reads
+  time: "New This Week" always said thirty, sorting by newest was arbitrary
+  because every value was identical, and the revenue-by-month chart put
+  everything in one column with five empty ones beside it.
+
+  A CRM with no history cannot be analysed, and a demo where the analysis is
+  blank does not demonstrate anything. So the thirty starter records are given
+  a plausible six months of history instead.
+
+  Only the starter records. A client you add yourself is stamped with the real
+  current time in js/clients.js, so invented history stays clearly separated
+  from your genuine activity.
+
+  Derived from the id rather than random, which matters: the same client always
+  lands on the same date, so the charts do not rearrange themselves on every
+  reload and the demo is repeatable. 37 shares no factor with 180, so
+  multiplying the ids by it walks the whole six-month range instead of piling
+  up on a few days.
+*/
+const DEMO_HISTORY_DAYS = 180;
+const DEMO_DATE_STRIDE = 37;
+
+function seededCreatedAt(id) {
+  const daysAgo = (Number(id) * DEMO_DATE_STRIDE) % DEMO_HISTORY_DAYS;
+  const when = new Date();
+  when.setDate(when.getDate() - daysAgo);
+  return when.toISOString();
+}
+
+/*
+  The starter book of business.
+
+  The API hands back thirty people with no sales information at all, so every
+  one of them used to arrive as a Lead. That left the demo with nothing won,
+  nothing lost, no revenue and no funnel — a CRM that had never done any
+  business. Nothing on the dashboard or the analytics page had anything to
+  report until the evaluator manually changed statuses one at a time.
+
+  So the starter thirty arrive as a plausible mix instead: roughly 40% still
+  Lead, 30% in conversation, 20% won and 10% lost. Repeating the list and
+  indexing it by id keeps it deterministic, exactly like the dates.
+
+  This applies ONLY to the starter data. A client you add yourself still
+  defaults to Lead, as the assignment requires (P4.4).
+*/
+const DEMO_STATUS_MIX = [
+  'Lead', 'Contacted', 'Won', 'Lead', 'Contacted',
+  'Lead', 'Won', 'Lost', 'Contacted', 'Lead',
+];
+
+function seededStatus(id) {
+  return DEMO_STATUS_MIX[Number(id) % DEMO_STATUS_MIX.length];
+}
+
+/** True for the two statuses that end a deal, either way. */
+function isClosedStatus(status) {
+  return status === 'Won' || status === 'Lost';
+}
+
+/**
+ * A closing date somewhere between 5 and 46 days after the deal opened.
+ *
+ * Deals that closed have to have closed AFTER they opened, and the gap is what
+ * "average days to close" measures. Deriving it from the id again keeps the
+ * velocity figures stable across reloads.
+ */
+function seededClosedAt(createdAt, id) {
+  const daysToClose = 5 + ((Number(id) * 13) % 42);
+  const when = new Date(createdAt);
+  when.setDate(when.getDate() + daysToClose);
+
+  /* Never let an invented closing date land in the future. A deal that closed
+     next Tuesday would make every velocity figure negative. */
+  const now = new Date();
+  return (when > now ? now : when).toISOString();
 }
 
 /** A believable deal size, so the dashboard statistics are not all identical. */

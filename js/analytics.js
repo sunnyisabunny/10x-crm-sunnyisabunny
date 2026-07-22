@@ -1,156 +1,565 @@
 /**
- * analytics.js — the terminal analytics board, and file export/import.
+ * analytics.js — the diagnostic board, and file export/import.
  *
- * Two jobs that belong together because both are about the client database as
- * a whole rather than about one client:
- *   1. Report on it — a boot log, a summary table, and two charts
- *   2. Move it — write it to a file, and read one back
+ * WHAT THIS PAGE IS FOR, AND WHY IT IS NOT THE DASHBOARD
  *
- * The charts are drawn on a canvas by hand. No chart library is used, partly
- * because the assignment forbids libraries and partly because two charts of
- * this kind are about sixty lines of arithmetic each.
+ * The first version of this page was a dashboard in different clothes: it
+ * reported the same counts and the same stage breakdown, dressed as a
+ * terminal. That is a fair criticism and it was right.
+ *
+ * The dashboard answers "what is happening?" — how many clients, how much
+ * revenue, what sits in each stage. Those are facts about the present.
+ *
+ * This page answers two questions the dashboard cannot:
+ *   1. "What is going wrong?"  — deals that have gone quiet, deals stuck far
+ *      longer than normal, revenue leaning dangerously on one account
+ *   2. "Where is this heading?" — win rate, how long deals take, and what the
+ *      open pipeline is really worth once the win rate is applied to it
+ *
+ * Every number here is derived rather than counted. Nothing on this page is a
+ * total the dashboard already shows.
  *
  * Loaded after storage.js, ui.js and data.js.
  */
 
-/* How many months of history the revenue chart covers. */
+/* ==================================================================
+   Thresholds — every judgement this page makes comes from one of these
+   ================================================================== */
+
+/* No contact in this long, and an open deal is considered neglected. */
+const NEGLECT_DAYS = 14;
+
+/* A deal open for more than this multiple of the average time to close is
+   stalled rather than merely slow. Expressed as a multiple rather than a fixed
+   number of days so it adapts to how this particular business actually sells:
+   a three-week sales cycle and a six-month one should not share a threshold. */
+const STALL_FACTOR = 2;
+
+/* Above this share of revenue from a single client, the business is exposed. */
+const CONCENTRATION_WARN = 0.35;
+
+/*
+  Below this many won deals, concentration is arithmetic rather than a finding.
+
+  With two wins, one of them is always at least half the revenue. With three,
+  an even split is already 33% each, so the 35% threshold fires on the
+  slightest imbalance and the page cries wolf. At four or more, 35% genuinely
+  means one account is pulling far more weight than the rest.
+
+  Found by a test: a deliberately healthy book of three similar wins was being
+  reported as a concentration risk.
+*/
+const MIN_WON_FOR_CONCENTRATION = 4;
+
+/* Below this many closed deals a win rate is noise, not a statistic. */
+const MIN_CLOSED_FOR_RATE = 4;
+
+/* Fallback cycle length before enough deals have closed to measure one. */
+const ASSUMED_DAYS_TO_CLOSE = 30;
+
+/* How many months the revenue chart covers. */
 const ANALYTICS_MONTHS = 6;
 
-/* Chart padding, in canvas pixels, leaving room for the axis labels. */
+/* How many clients each findings list names before it stops. */
+const FINDINGS_LIMIT = 5;
+
+/* Chart geometry, in canvas pixels. */
 const CHART_PAD_LEFT = 64;
 const CHART_PAD_BOTTOM = 34;
 const CHART_PAD_TOP = 18;
 const CHART_PAD_RIGHT = 16;
 
-/* Milliseconds between boot-log lines appearing. */
-const BOOT_LINE_MS = 90;
+/* Milliseconds between scan lines appearing. */
+const SCAN_LINE_MS = 80;
 
-/* The version stamped into an export file. If the client shape ever changes,
-   this is what tells a future importer which shape it is looking at. */
+/* The version stamped into an export file. */
 const EXPORT_VERSION = 1;
+
+const MS_PER_DAY = 86400000;
 
 let analyticsClients = [];
 
 /* ==================================================================
-   Terminal readout
+   Time helpers
+   ================================================================== */
+
+/** Whole days between an ISO timestamp and now. */
+function daysSince(isoString) {
+  const then = new Date(isoString);
+  if (Number.isNaN(then.getTime())) return 0;
+  return Math.floor((Date.now() - then.getTime()) / MS_PER_DAY);
+}
+
+/**
+ * When anyone last did anything with this client.
+ *
+ * The most recent of: the day they were added, the day the deal closed, and
+ * the last note written about them.
+ *
+ * Notes carry two timestamps and this uses `at`, the ISO one, never `date`.
+ * `date` is formatted for whoever is reading it, so 05/07/2026 is the fifth of
+ * July to one person and the seventh of May to another — fine to display,
+ * impossible to compute with. Notes written before that field existed simply
+ * do not count towards recency, which is safe: it can only make a client look
+ * more neglected than they are, never less.
+ */
+function lastTouchedAt(client) {
+  let latest = new Date(client.createdAt).getTime() || 0;
+
+  if (client.closedAt) {
+    latest = Math.max(latest, new Date(client.closedAt).getTime() || 0);
+  }
+
+  (client.notes || []).forEach((note) => {
+    if (!note.at) return;
+    latest = Math.max(latest, new Date(note.at).getTime() || 0);
+  });
+
+  return latest;
+}
+
+/** Deals still in play. */
+function openDeals(clients) {
+  return clients.filter((c) => c.status === 'Lead' || c.status === 'Contacted');
+}
+
+function sumValue(clients) {
+  return clients.reduce((total, client) => total + (client.dealValue || 0), 0);
+}
+
+/* ==================================================================
+   The metrics
    ================================================================== */
 
 /**
- * Print the boot log one line at a time.
+ * Everything the page reports, computed once and shared.
  *
- * The delay is the whole point: a report that appears instantly reads as a web
- * page, whereas one that arrives line by line reads as a machine working. The
- * lines are appended with textContent on a <pre>, so client names inside them
- * are displayed rather than interpreted.
+ * Computing these together rather than on demand means the scan, the funnel
+ * and the forecast cannot disagree with each other about the same figure.
  */
-let bootLogTimer = null;
+function computeMetrics(clients) {
+  const won = clients.filter((c) => c.status === 'Won');
+  const lost = clients.filter((c) => c.status === 'Lost');
+  const open = openDeals(clients);
+  const closed = won.length + lost.length;
 
-function runBootLog(lines) {
-  const log = document.getElementById('boot-log');
+  /* Win rate is closed deals only. Counting open deals as losses would make
+     every young pipeline look like a disaster. */
+  const winRate = closed === 0 ? 0 : won.length / closed;
+  const rateIsMeaningful = closed >= MIN_CLOSED_FOR_RATE;
 
-  /* Cancel a log that is still printing before starting another.
-     Without this, importing a file while the first log was still running
-     would leave two intervals appending to the same element and the lines
-     would interleave. Clearing the text is not enough on its own — the old
-     timer keeps its own position and carries on writing. */
-  clearInterval(bootLogTimer);
+  /* Average days from opening a deal to closing it, measured only on deals
+     that actually have both dates. */
+  const withBothDates = [...won, ...lost].filter((c) => c.closedAt && c.createdAt);
+  const cycleDays = withBothDates.length === 0
+    ? ASSUMED_DAYS_TO_CLOSE
+    : Math.round(
+        withBothDates.reduce((total, c) => {
+          const days = (new Date(c.closedAt) - new Date(c.createdAt)) / MS_PER_DAY;
+          return total + Math.max(days, 0);
+        }, 0) / withBothDates.length
+      );
+
+  const wonValue = sumValue(won);
+  const openValue = sumValue(open);
+
+  /* The forecast. An open pipeline total on its own is a wish; multiplied by
+     the rate at which deals actually close, it is an estimate. */
+  const forecast = Math.round(openValue * winRate);
+
+  /* Momentum: revenue closed this calendar month against last. */
+  const now = new Date();
+  const monthOf = (client) => {
+    const when = new Date(client.closedAt || client.createdAt);
+    return `${when.getFullYear()}-${when.getMonth()}`;
+  };
+  const thisKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const lastDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastKey = `${lastDate.getFullYear()}-${lastDate.getMonth()}`;
+
+  const thisMonth = sumValue(won.filter((c) => monthOf(c) === thisKey));
+  const lastMonth = sumValue(won.filter((c) => monthOf(c) === lastKey));
+
+  return {
+    total: clients.length,
+    won, lost, open, closed,
+    winRate, rateIsMeaningful, cycleDays,
+    wonValue, openValue, forecast,
+    avgDeal: clients.length === 0 ? 0 : Math.round(sumValue(clients) / clients.length),
+    thisMonth, lastMonth,
+  };
+}
+
+/* ==================================================================
+   The diagnostics
+   ================================================================== */
+
+/** Open deals nobody has touched in a fortnight, quietest first. */
+function findNeglected(clients) {
+  return openDeals(clients)
+    .map((client) => ({ client, days: Math.floor((Date.now() - lastTouchedAt(client)) / MS_PER_DAY) }))
+    .filter((row) => row.days >= NEGLECT_DAYS)
+    .sort((a, b) => b.days - a.days);
+}
+
+/**
+ * Open deals that have been open far longer than deals normally take.
+ *
+ * The distinction from "neglected" matters: a neglected deal is one you have
+ * not spoken to, a stalled one is a deal you may well be working every week
+ * that is simply not moving. They need different responses.
+ */
+function findStalled(clients, cycleDays) {
+  const limit = Math.max(cycleDays * STALL_FACTOR, 1);
+
+  return openDeals(clients)
+    .map((client) => ({ client, days: daysSince(client.createdAt) }))
+    .filter((row) => row.days > limit)
+    .sort((a, b) => b.days - a.days);
+}
+
+/**
+ * How much of the won revenue comes from the single largest account.
+ *
+ * A business where one client is most of the income is one bad phone call away
+ * from a crisis, and no other view in this app would ever show that.
+ */
+function findConcentration(metrics) {
+  if (metrics.won.length < MIN_WON_FOR_CONCENTRATION || metrics.wonValue === 0) return null;
+
+  const biggest = [...metrics.won].sort((a, b) => b.dealValue - a.dealValue)[0];
+  return {
+    client: biggest,
+    share: biggest.dealValue / metrics.wonValue,
+  };
+}
+
+/**
+ * Turn the raw numbers into a ranked list of findings.
+ *
+ * Each one carries a level, a one-line verdict, and optionally the clients
+ * involved. Sorting by severity puts whatever is most wrong at the top.
+ */
+function buildFindings(clients, metrics) {
+  const findings = [];
+
+  const neglected = findNeglected(clients);
+  if (neglected.length > 0) {
+    findings.push({
+      level: neglected.length >= 5 ? 'FAIL' : 'WARN',
+      title: `${neglected.length} open deal${neglected.length === 1 ? '' : 's'} untouched for ${NEGLECT_DAYS}+ days`,
+      hint: 'No note, no change, no contact. These go cold next.',
+      rows: neglected.slice(0, FINDINGS_LIMIT).map((row) => ({
+        name: row.client.name,
+        meta: `${row.days} days quiet`,
+        value: row.client.dealValue,
+      })),
+    });
+  } else {
+    findings.push({ level: 'OK', title: 'Every open deal has been touched recently', rows: [] });
+  }
+
+  const stalled = findStalled(clients, metrics.cycleDays);
+  if (stalled.length > 0) {
+    findings.push({
+      level: stalled.length >= 4 ? 'FAIL' : 'WARN',
+      title: `${stalled.length} deal${stalled.length === 1 ? '' : 's'} open more than ${STALL_FACTOR}x your ${metrics.cycleDays}-day cycle`,
+      hint: 'Long past the point where deals like these normally close.',
+      rows: stalled.slice(0, FINDINGS_LIMIT).map((row) => ({
+        name: row.client.name,
+        meta: `${row.days} days open`,
+        value: row.client.dealValue,
+      })),
+    });
+  } else {
+    findings.push({ level: 'OK', title: 'No deal is running unusually long', rows: [] });
+  }
+
+  const concentration = findConcentration(metrics);
+  if (concentration && concentration.share >= CONCENTRATION_WARN) {
+    findings.push({
+      level: concentration.share >= 0.5 ? 'FAIL' : 'WARN',
+      title: `${Math.round(concentration.share * 100)}% of won revenue comes from one client`,
+      hint: 'Losing this account would take most of the revenue with it.',
+      rows: [{
+        name: concentration.client.name,
+        meta: `${Math.round(concentration.share * 100)}% of all revenue won`,
+        value: concentration.client.dealValue,
+      }],
+    });
+  } else if (concentration) {
+    findings.push({ level: 'OK', title: 'Revenue is spread across several accounts', rows: [] });
+  }
+
+  if (!metrics.rateIsMeaningful) {
+    findings.push({
+      level: 'INFO',
+      title: `Only ${metrics.closed} deals have closed — win rate is not yet reliable`,
+      hint: `Forecasts stay rough until at least ${MIN_CLOSED_FOR_RATE} deals have finished.`,
+      rows: [],
+    });
+  }
+
+  const order = { FAIL: 0, WARN: 1, INFO: 2, OK: 3 };
+  return findings.sort((a, b) => order[a.level] - order[b.level]);
+}
+
+/* ==================================================================
+   Rendering the scan
+   ================================================================== */
+
+let scanTimer = null;
+
+/**
+ * Print the scan one line at a time.
+ *
+ * The previous timer is cancelled first. Without that, importing a file while
+ * a scan was still printing would leave two intervals appending to the same
+ * element and the lines would interleave — clearing the text is not enough,
+ * because the old timer keeps its own position.
+ */
+function runScan(lines) {
+  const log = document.getElementById('scan-log');
+
+  clearInterval(scanTimer);
   log.textContent = '';
 
   let index = 0;
-  bootLogTimer = setInterval(() => {
+  scanTimer = setInterval(() => {
     log.textContent += `${lines[index]}\n`;
     index += 1;
-    if (index >= lines.length) clearInterval(bootLogTimer);
-  }, BOOT_LINE_MS);
+    if (index >= lines.length) clearInterval(scanTimer);
+  }, SCAN_LINE_MS);
 }
 
-/** Pad a string to a fixed width so monospace columns line up. */
+function renderScan(metrics, findings) {
+  const problems = findings.filter((f) => f.level === 'FAIL' || f.level === 'WARN');
+
+  const lines = [
+    '> 10X CRM DIAGNOSTIC v1.0',
+    `> scanning ${metrics.total} records ...`,
+    '',
+    ...findings.map((f) => `[ ${pad(f.level, 4)} ] ${f.title}`),
+    '',
+    problems.length === 0
+      ? '> no issues found. nothing needs your attention today.'
+      : `> ${problems.length} issue${problems.length === 1 ? '' : 's'} require attention. detail below.`,
+  ];
+
+  runScan(lines);
+}
+
+/** Pad a string to a fixed width so the monospace columns line up. */
 function pad(value, width) {
   const text = String(value);
   return text.length >= width ? text : text + ' '.repeat(width - text.length);
 }
 
-function padLeft(value, width) {
-  const text = String(value);
-  return text.length >= width ? text : ' '.repeat(width - text.length) + text;
+/**
+ * The detail behind each finding: the actual clients, named.
+ *
+ * Built with createElement and textContent throughout, because these are
+ * client names the user typed and this page is no different from any other in
+ * that respect.
+ */
+function renderFindings(findings) {
+  const host = document.getElementById('findings');
+  host.replaceChildren();
+
+  findings
+    .filter((finding) => finding.rows.length > 0)
+    .forEach((finding) => {
+      const panel = document.createElement('div');
+      panel.className = `window finding finding--${finding.level.toLowerCase()}`;
+
+      const bar = document.createElement('div');
+      bar.className = 'window__bar';
+      const title = document.createElement('span');
+      title.className = 'window__title';
+      title.textContent = `${finding.level}: ${finding.title}`;
+      bar.append(title);
+
+      const body = document.createElement('div');
+      body.className = 'window__body stack-2';
+
+      if (finding.hint) {
+        const hint = document.createElement('p');
+        hint.className = 'text-dim';
+        hint.style.fontSize = 'var(--fs-sm)';
+        hint.textContent = finding.hint;
+        body.append(hint);
+      }
+
+      finding.rows.forEach((row) => {
+        const line = document.createElement('div');
+        line.className = 'finding__row';
+
+        const name = document.createElement('span');
+        name.className = 'finding__name';
+        name.textContent = row.name;
+
+        const meta = document.createElement('span');
+        meta.className = 'finding__meta mono';
+        meta.textContent = row.meta;
+
+        const value = document.createElement('span');
+        value.className = 'finding__value mono';
+        value.textContent = formatMoney(row.value);
+
+        line.append(name, meta, value);
+        body.append(line);
+      });
+
+      panel.append(bar, body);
+      host.append(panel);
+    });
 }
 
-/**
- * The summary table: one row per pipeline stage.
- *
- * Drawn with box-drawing characters into a <pre> rather than as an HTML table,
- * because the whole panel is pretending to be terminal output and a real
- * <table> would style nothing like one. The figures underneath are the same
- * ones the dashboard shows — both derive from the same client array.
- */
-function renderSummary(clients) {
-  const counts = countByStatus(clients);
-  const total = clients.length;
+/* ==================================================================
+   Forecast readout
+   ================================================================== */
 
-  const rows = CLIENT_STATUSES.map((status) => {
-    const inStage = clients.filter((client) => client.status === status);
-    const value = inStage.reduce((sum, client) => sum + client.dealValue, 0);
-    const share = total === 0 ? 0 : Math.round((counts[status] / total) * 100);
+function renderForecast(metrics) {
+  const pct = (n) => `${Math.round(n * 100)}%`;
 
-    /* A bar made of block characters — the cheapest possible chart, and the
-       one that belongs in a terminal. */
-    const bar = '█'.repeat(Math.round(share / 5)) || '·';
+  const change = metrics.lastMonth === 0
+    ? (metrics.thisMonth > 0 ? 'new' : 'flat')
+    : `${metrics.thisMonth >= metrics.lastMonth ? '+' : ''}${Math.round(((metrics.thisMonth - metrics.lastMonth) / metrics.lastMonth) * 100)}%`;
 
-    return `│ ${pad(status, 10)}│${padLeft(counts[status], 6)} │${padLeft(formatMoney(value), 12)} │${padLeft(`${share}%`, 5)} │ ${pad(bar, 20)}│`;
-  });
+  const rows = [
+    ['win rate', metrics.rateIsMeaningful ? pct(metrics.winRate) : `${pct(metrics.winRate)} (low confidence)`],
+    ['deals closed', `${metrics.won.length} won / ${metrics.lost.length} lost`],
+    ['average cycle', `${metrics.cycleDays} days to close`],
+    ['average deal', formatMoney(metrics.avgDeal)],
+    ['', ''],
+    ['realised revenue', formatMoney(metrics.wonValue)],
+    ['this month', `${formatMoney(metrics.thisMonth)}  (${change} vs last month)`],
+    ['', ''],
+    ['open pipeline', formatMoney(metrics.openValue)],
+    [`x win rate ${pct(metrics.winRate)}`, ''],
+    ['EXPECTED', formatMoney(metrics.forecast)],
+  ];
 
-  const line = (l, m, r) => `${l}${'─'.repeat(11)}${m}${'─'.repeat(7)}${m}${'─'.repeat(13)}${m}${'─'.repeat(6)}${m}${'─'.repeat(21)}${r}`;
-
-  document.getElementById('summary-table').textContent = [
-    line('┌', '┬', '┐'),
-    `│ ${pad('STAGE', 10)}│${padLeft('COUNT', 6)} │${padLeft('VALUE', 12)} │${padLeft('SHARE', 5)} │ ${pad('', 20)}│`,
-    line('├', '┼', '┤'),
-    ...rows,
-    line('└', '┴', '┘'),
-  ].join('\n');
+  document.getElementById('forecast-table').textContent = rows
+    .map(([label, value]) => (label === '' ? '' : `  ${pad(label, 22)}${value}`))
+    .join('\n');
 }
 
 /* ==================================================================
    Charts
    ================================================================== */
 
-/** The colour to draw in, read live so the charts follow the theme. */
 function chartColor(name) {
   return getComputedStyle(document.body).getPropertyValue(name).trim() || '#00F0FF';
 }
 
 /**
- * Shared chart frame: clear, draw the axes and the horizontal guide lines.
+ * The conversion funnel.
  *
- * Returns the plotting rectangle so each chart can position its own data
- * inside it without repeating the padding arithmetic.
+ * NOT the dashboard's pipeline bar. That shows how many clients sit in each
+ * stage right now; this shows the percentage lost moving BETWEEN stages, which
+ * is the number that tells you where the process is leaking.
+ *
+ * An honest limitation, stated because it matters: the app stores each
+ * client's CURRENT status, not the history of every stage they passed through.
+ * So "reached Contacted" is inferred as everyone currently at Contacted or
+ * Won — a deal lost while still a Lead cannot be told apart from one lost
+ * after a long negotiation. Tracking every transition would fix that and is
+ * the obvious next step.
  */
+function drawFunnel(clients) {
+  const canvas = document.getElementById('chart-funnel');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const byStatus = (s) => clients.filter((c) => c.status === s).length;
+
+  const stages = [
+    { label: 'PROSPECTS', count: clients.length },
+    { label: 'ENGAGED', count: byStatus('Contacted') + byStatus('Won') },
+    { label: 'WON', count: byStatus('Won') },
+  ];
+
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  ctx.font = '12px "JetBrains Mono", monospace';
+  ctx.textBaseline = 'middle';
+
+  const top = 26;
+  const bandHeight = 54;
+  const gap = 26;
+  const maxWidth = width - 200;
+  const centre = width / 2 - 40;
+  const accent = chartColor('--phosphor');
+  const dim = chartColor('--text-dim');
+  const danger = chartColor('--danger');
+
+  stages.forEach((stage, i) => {
+    const share = stages[0].count === 0 ? 0 : stage.count / stages[0].count;
+    const bandWidth = Math.max(maxWidth * share, 6);
+    const y = top + i * (bandHeight + gap);
+
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = 0.22 + 0.26 * (1 - i / stages.length);
+    ctx.fillRect(centre - bandWidth / 2, y, bandWidth, bandHeight);
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 12;
+    ctx.strokeRect(centre - bandWidth / 2, y, bandWidth, bandHeight);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = accent;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${stage.label}  ${stage.count}`, centre, y + bandHeight / 2);
+
+    /* The number that makes this a funnel rather than a bar chart: how many
+       were lost getting from the stage above to this one. */
+    if (i > 0) {
+      const previous = stages[i - 1].count;
+      const advanced = previous === 0 ? 0 : stage.count / previous;
+      const dropped = Math.round((1 - advanced) * 100);
+
+      ctx.fillStyle = dropped >= 50 ? danger : dim;
+      ctx.textAlign = 'left';
+      ctx.fillText(
+        `↓ ${Math.round(advanced * 100)}% advance   −${dropped}% lost`,
+        centre + maxWidth / 2 + 16,
+        y - gap / 2
+      );
+    }
+  });
+
+  ctx.fillStyle = dim;
+  ctx.textAlign = 'left';
+  ctx.fillText(`LOST: ${byStatus('Lost')}`, 12, height - 14);
+
+  document.getElementById('chart-funnel-text').textContent =
+    `Conversion funnel: ${stages.map((s) => `${s.label} ${s.count}`).join(', ')}. `
+    + `Lost ${byStatus('Lost')}.`;
+}
+
 function beginChart(canvas, maxValue) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  const width = canvas.width;
-  const height = canvas.height;
   const plotLeft = CHART_PAD_LEFT;
-  const plotRight = width - CHART_PAD_RIGHT;
+  const plotRight = canvas.width - CHART_PAD_RIGHT;
   const plotTop = CHART_PAD_TOP;
-  const plotBottom = height - CHART_PAD_BOTTOM;
+  const plotBottom = canvas.height - CHART_PAD_BOTTOM;
 
-  ctx.clearRect(0, 0, width, height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.font = '11px "JetBrains Mono", monospace';
   ctx.textBaseline = 'middle';
 
-  const grid = chartColor('--border');
-  const dim = chartColor('--text-dim');
-
-  /* Four guide lines with their values written on the left. Drawing the scale
-     rather than just the bars is what makes the numbers readable. */
   const steps = 4;
   for (let i = 0; i <= steps; i += 1) {
     const y = plotBottom - ((plotBottom - plotTop) * i) / steps;
-    const value = (maxValue * i) / steps;
 
-    ctx.strokeStyle = grid;
+    ctx.strokeStyle = chartColor('--border');
     ctx.globalAlpha = 0.45;
     ctx.beginPath();
     ctx.moveTo(plotLeft, y);
@@ -158,21 +567,20 @@ function beginChart(canvas, maxValue) {
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    ctx.fillStyle = dim;
+    ctx.fillStyle = chartColor('--text-dim');
     ctx.textAlign = 'right';
-    ctx.fillText(formatMoney(Math.round(value)), plotLeft - 8, y);
+    ctx.fillText(formatMoney(Math.round((maxValue * i) / steps)), plotLeft - 8, y);
   }
 
   return { ctx, plotLeft, plotRight, plotTop, plotBottom };
 }
 
 /**
- * Revenue won per month, as a filled area with a glowing line on top.
+ * Revenue actually realised, by month.
  *
- * Only deals marked Won count, because "revenue" that includes deals you have
- * not closed is not revenue. The buckets are the last six months including
- * this one, so an empty month still occupies its slot rather than being
- * silently skipped — a gap in a time series is information.
+ * Bucketed by the day the deal CLOSED, not the day it was created — money
+ * arrives when the deal is won, and attributing it to the month the lead came
+ * in would put this year's revenue in last year's chart.
  */
 function drawRevenueChart(clients) {
   const canvas = document.getElementById('chart-revenue');
@@ -192,15 +600,13 @@ function drawRevenueChart(clients) {
   clients
     .filter((client) => client.status === 'Won')
     .forEach((client) => {
-      const when = new Date(client.createdAt);
+      const when = new Date(client.closedAt || client.createdAt);
       const bucket = buckets.find(
         (b) => b.year === when.getFullYear() && b.month === when.getMonth()
       );
       if (bucket) bucket.total += client.dealValue;
     });
 
-  /* A max of zero would divide by zero below, so an empty chart still gets a
-     sensible scale to draw against. */
   const max = Math.max(...buckets.map((b) => b.total), 1000);
   const frame = beginChart(canvas, max);
   if (!frame) return;
@@ -209,18 +615,14 @@ function drawRevenueChart(clients) {
   const accent = chartColor('--phosphor');
   const step = (plotRight - plotLeft) / Math.max(buckets.length - 1, 1);
 
-  const pointAt = (index) => ({
-    x: plotLeft + step * index,
-    y: plotBottom - ((plotBottom - plotTop) * buckets[index].total) / max,
+  const pointAt = (i) => ({
+    x: plotLeft + step * i,
+    y: plotBottom - ((plotBottom - plotTop) * buckets[i].total) / max,
   });
 
-  /* The filled area under the line. */
   ctx.beginPath();
   ctx.moveTo(plotLeft, plotBottom);
-  buckets.forEach((_, i) => {
-    const p = pointAt(i);
-    ctx.lineTo(p.x, p.y);
-  });
+  buckets.forEach((_, i) => { const p = pointAt(i); ctx.lineTo(p.x, p.y); });
   ctx.lineTo(plotRight, plotBottom);
   ctx.closePath();
   ctx.globalAlpha = 0.18;
@@ -228,8 +630,6 @@ function drawRevenueChart(clients) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  /* The line itself, with a glow. shadowBlur is the canvas equivalent of the
-     bloom the rest of the interface uses. */
   ctx.beginPath();
   buckets.forEach((_, i) => {
     const p = pointAt(i);
@@ -243,7 +643,6 @@ function drawRevenueChart(clients) {
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  /* A hard square at each reading, and the month underneath it. */
   ctx.textAlign = 'center';
   buckets.forEach((bucket, i) => {
     const p = pointAt(i);
@@ -257,65 +656,6 @@ function drawRevenueChart(clients) {
     `Revenue won per month: ${buckets.map((b) => `${b.label} ${formatMoney(b.total)}`).join(', ')}.`;
 }
 
-/**
- * Total deal value sitting at each pipeline stage, as vertical bars.
- *
- * Deliberately value rather than count: five small deals and one large one are
- * very different situations, and the dashboard already shows the counts.
- */
-function drawStageChart(clients) {
-  const canvas = document.getElementById('chart-stage');
-
-  const bars = CLIENT_STATUSES.map((status) => ({
-    label: status,
-    total: clients
-      .filter((client) => client.status === status)
-      .reduce((sum, client) => sum + client.dealValue, 0),
-  }));
-
-  const max = Math.max(...bars.map((b) => b.total), 1000);
-  const frame = beginChart(canvas, max);
-  if (!frame) return;
-
-  const { ctx, plotLeft, plotRight, plotTop, plotBottom } = frame;
-  const slot = (plotRight - plotLeft) / bars.length;
-  const barWidth = Math.min(slot * 0.55, 72);
-
-  const colors = {
-    Lead: chartColor('--status-lead'),
-    Contacted: chartColor('--status-contacted'),
-    Won: chartColor('--status-won'),
-    Lost: chartColor('--status-lost'),
-  };
-
-  ctx.textAlign = 'center';
-
-  bars.forEach((bar, i) => {
-    const x = plotLeft + slot * i + slot / 2;
-    const height = ((plotBottom - plotTop) * bar.total) / max;
-    const color = colors[bar.label] || chartColor('--accent');
-
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
-    ctx.fillRect(x - barWidth / 2, plotBottom - height, barWidth, height);
-    ctx.shadowBlur = 0;
-
-    /* A brighter cap, so each bar reads as a lit object rather than a
-       flat rectangle — the same idea as the gloss on the buttons. */
-    ctx.fillStyle = '#FFFFFF';
-    ctx.globalAlpha = 0.35;
-    ctx.fillRect(x - barWidth / 2, plotBottom - height, barWidth, 3);
-    ctx.globalAlpha = 1;
-
-    ctx.fillStyle = chartColor('--text-dim');
-    ctx.fillText(bar.label, x, plotBottom + 16);
-  });
-
-  document.getElementById('chart-stage-text').textContent =
-    `Total deal value by stage: ${bars.map((b) => `${b.label} ${formatMoney(b.total)}`).join(', ')}.`;
-}
-
 /* ==================================================================
    Export
    ================================================================== */
@@ -325,13 +665,8 @@ function drawStageChart(clients) {
  *
  * WHAT IS DELIBERATELY NOT IN HERE: the account. crm_users holds the password
  * in readable text, and a backup file is exactly the kind of thing people mail
- * to themselves or drop in cloud storage. Exporting it would turn a local
- * weakness the assignment forces on us into a portable one. Only the profile
- * fields that describe the person are included, never the credentials.
- *
- * The download itself is the standard trick: build a Blob, point an <a
- * download> at a temporary object URL, click it, then revoke the URL because
- * it holds the blob in memory until the page is closed otherwise.
+ * to themselves or leave in cloud storage. Exporting it would turn a local
+ * weakness the assignment forces on us into a portable one.
  */
 function handleExport() {
   const user = getCurrentUser();
@@ -353,6 +688,9 @@ function handleExport() {
   document.body.appendChild(link);
   link.click();
   link.remove();
+
+  /* Revoked because the object URL holds the blob in memory until the page is
+     closed otherwise. */
   URL.revokeObjectURL(url);
 
   document.getElementById('transfer-status').textContent =
@@ -365,7 +703,7 @@ function handleExport() {
    ================================================================== */
 
 /*
-  A data URL is only allowed as an avatar if it is actually an image.
+  A data URL is only allowed as an image if it actually is one.
 
   This is the one place in the app where a completely untrusted document
   becomes application data. A file could name anything as an avatar, and that
@@ -384,12 +722,8 @@ function safeImageValue(value) {
  * Rebuild one client from untrusted input.
  *
  * Every field is coerced to the type the app expects rather than trusted to
- * already be it. A "dealValue" that arrives as the string "abc" would poison
- * every total on the dashboard; Number() plus a finite check turns it into 0
- * instead. A missing notes array would break the detail window on open.
- *
- * Returns null for a record with no usable name, which is the one field
- * nothing else can be derived from.
+ * already be it. A dealValue arriving as "abc" would poison every total on
+ * this page and the dashboard; Number() plus a finite check makes it 0.
  */
 function sanitizeImportedClient(raw, index) {
   if (!raw || typeof raw !== 'object') return null;
@@ -398,9 +732,10 @@ function sanitizeImportedClient(raw, index) {
   if (name === '') return null;
 
   const value = Number(raw.dealValue);
+  const status = CLIENT_STATUSES.includes(raw.status) ? raw.status : DEFAULT_STATUS;
 
   return {
-    /* Ids are reassigned rather than trusted. A file with two clients sharing
+    /* Ids are reassigned rather than trusted: a file with two clients sharing
        an id would make deleting one delete both. */
     id: Date.now() + index,
     name,
@@ -409,7 +744,7 @@ function sanitizeImportedClient(raw, index) {
     company: String(raw.company || '').trim(),
     image: safeImageValue(raw.image),
     avatar: safeImageValue(raw.avatar),
-    status: CLIENT_STATUSES.includes(raw.status) ? raw.status : DEFAULT_STATUS,
+    status,
     dealValue: Number.isFinite(value) && value > 0 ? value : 0,
     notes: Array.isArray(raw.notes)
       ? raw.notes
@@ -417,19 +752,16 @@ function sanitizeImportedClient(raw, index) {
           .map((note) => ({
             text: String(note.text || ''),
             date: String(note.date || ''),
+            at: String(note.at || ''),
           }))
       : [],
     createdAt: String(raw.createdAt || new Date().toISOString()),
+    /* A closing date only survives import if the deal is actually closed,
+       so a file cannot describe an open deal that has already finished. */
+    closedAt: isClosedStatus(status) ? String(raw.closedAt || '') : '',
   };
 }
 
-/**
- * Read a file back in, replacing the current client list.
- *
- * Confirmed first, because it overwrites everything. This is the second of the
- * only two confirm() dialogs in the app, and for the same reason as the first:
- * the action is destructive and cannot be undone.
- */
 async function handleImport(event) {
   const input = event.target;
   const file = input.files[0];
@@ -446,8 +778,6 @@ async function handleImport(event) {
     try {
       payload = JSON.parse(text);
     } catch (parseError) {
-      /* JSON.parse throws on anything malformed, and the message it throws is
-         written for a developer. The user gets a plain one. */
       errorSlot.textContent = 'That file is not valid JSON';
       return;
     }
@@ -487,7 +817,6 @@ async function handleImport(event) {
   } catch (error) {
     errorSlot.textContent = 'Could not read that file';
   } finally {
-    /* Reset so re-picking the same file fires another change event. */
     input.value = '';
   }
 }
@@ -497,25 +826,14 @@ async function handleImport(event) {
    ================================================================== */
 
 function renderAnalytics() {
-  const clients = analyticsClients;
-  const won = clients.filter((client) => client.status === 'Won');
-  const revenue = won.reduce((sum, client) => sum + client.dealValue, 0);
-  const pipeline = clients
-    .filter((client) => client.status === 'Lead' || client.status === 'Contacted')
-    .reduce((sum, client) => sum + client.dealValue, 0);
+  const metrics = computeMetrics(analyticsClients);
+  const findings = buildFindings(analyticsClients, metrics);
 
-  runBootLog([
-    '> 10X CRM ANALYTICS v1.0',
-    '> mounting crm_clients ... OK',
-    `> ${clients.length} records loaded`,
-    `> ${won.length} closed / ${formatMoney(revenue)} realised`,
-    `> ${formatMoney(pipeline)} still open`,
-    '> ready.',
-  ]);
-
-  renderSummary(clients);
-  drawRevenueChart(clients);
-  drawStageChart(clients);
+  renderScan(metrics, findings);
+  renderFindings(findings);
+  renderForecast(metrics);
+  drawFunnel(analyticsClients);
+  drawRevenueChart(analyticsClients);
 }
 
 async function initAnalytics() {
@@ -528,7 +846,7 @@ async function initAnalytics() {
     analyticsClients = await loadClients();
   } catch (error) {
     analyticsClients = [];
-    document.getElementById('boot-log').textContent =
+    document.getElementById('scan-log').textContent =
       '> mounting crm_clients ... FAILED\n> could not reach the API and nothing is cached.';
     return;
   }
@@ -536,13 +854,13 @@ async function initAnalytics() {
   renderAnalytics();
 
   /* Redraw on theme change: the charts read their colours at draw time, so a
-     canvas drawn in dark mode keeps its dark-mode colours until it is drawn
-     again. CSS repaints itself; a canvas does not. */
+     canvas drawn in dark mode keeps those colours until it is drawn again.
+     CSS repaints itself; a canvas does not. */
   const themeButton = document.querySelector('[data-theme-toggle]');
   if (themeButton) {
     themeButton.addEventListener('click', () => {
+      drawFunnel(analyticsClients);
       drawRevenueChart(analyticsClients);
-      drawStageChart(analyticsClients);
     });
   }
 }

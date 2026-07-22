@@ -396,7 +396,11 @@ async function handleAddClient(event) {
     status: values.status,
     dealValue: Number(values.dealValue),
     notes: [],
+    /* The real clock. Only the thirty starter records get invented history;
+       anything you create yourself is stamped with the actual time, so your
+       genuine activity stays separated from the demo data. */
     createdAt: new Date().toISOString(),
+    closedAt: isClosedStatus(values.status) ? new Date().toISOString() : '',
   };
 
   /* Disable the button while the request is in flight, so an impatient double
@@ -512,6 +516,13 @@ function handleStatusChange(id, newStatus) {
   if (!client) return;
 
   client.status = newStatus;
+
+  /* Record when a deal actually finished, so the analytics page can measure
+     how long deals take rather than guess. Moving a client back out of Won or
+     Lost clears it again — a deal that has reopened has no closing date, and
+     leaving a stale one would quietly corrupt every velocity figure. */
+  client.closedAt = isClosedStatus(newStatus) ? new Date().toISOString() : '';
+
   saveClients(clients);
   refresh();
 
@@ -671,10 +682,23 @@ function handleAddNote(event) {
   const client = clients.find((item) => item.id === openClientId);
   if (!client) return;
 
+  const now = new Date();
+
   client.notes.push({
     text,
     /* toLocaleString gives date and time in the reader's own format. */
-    date: new Date().toLocaleString(),
+    date: now.toLocaleString(),
+    /*
+      The same instant again, in ISO form.
+
+      `date` is a display string in whatever format the reader's locale uses,
+      so 05/07/2026 means the fifth of July to one person and the seventh of
+      May to another. That is fine to show and impossible to compute with.
+      The analytics page needs to answer "when did anyone last touch this
+      client", and it cannot do that from a string whose meaning depends on
+      who is looking at it. One is for reading, one is for arithmetic.
+    */
+    at: now.toISOString(),
   });
 
   saveClients(clients);

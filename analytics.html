@@ -36,54 +36,79 @@
     </div>
 
     <!-- ============================================================
-         The whole page is dressed as one machine: a mainframe terminal
-         reporting on the client database. The boot log is written by
-         js/analytics.js line by line rather than sitting in the HTML,
-         so what it says is derived from the real data.
+         THE DIAGNOSTIC.
+
+         This is what separates this page from the dashboard. The
+         dashboard reports the current state: how many clients, how
+         much revenue, what is in each stage. This page reads the same
+         data and says what is WRONG with it — which deals have gone
+         quiet, which are stuck, whether the revenue is dangerously
+         concentrated in one account.
+
+         Written as a scan because a report that names problems and
+         ranks them by severity is what a terminal diagnostic does.
          ============================================================ -->
     <div class="window terminal">
       <div class="window__bar">
-        <span class="window__title">CRM_ANALYTICS.SYS</span>
+        <span class="window__title">DIAGNOSTIC_SCAN</span>
       </div>
 
       <div class="window__body">
-        <pre class="terminal__log" id="boot-log" aria-live="polite"></pre>
-
-        <!-- Summary figures, rendered as an aligned monospace table. -->
-        <pre class="terminal__table" id="summary-table"></pre>
+        <pre class="terminal__log" id="scan-log" aria-live="polite"></pre>
       </div>
     </div>
 
+    <!-- The detail behind any WARN or FAIL above: the actual clients
+         involved, worst first, so the page ends in something to do
+         rather than something to look at. Built by js/analytics.js. -->
+    <div id="findings" class="stack" style="margin-bottom: var(--sp-4)"></div>
+
     <div class="analytics-grid">
-      <!-- Chart 1: revenue won per month, drawn on a canvas. -->
+      <!-- Conversion funnel. Deliberately NOT the dashboard's pipeline
+           bar: that shows how many sit in each stage, this shows the
+           percentage lost moving between them. -->
+      <div class="window">
+        <div class="window__bar">
+          <span class="window__title">CONVERSION_FUNNEL</span>
+        </div>
+        <div class="window__body">
+          <canvas id="chart-funnel" class="chart" width="640" height="300"
+                  role="img" aria-label="Conversion funnel with drop-off between stages"></canvas>
+          <p class="sr-only" id="chart-funnel-text"></p>
+        </div>
+      </div>
+
+      <!-- Revenue actually realised, by month. Meaningless until the
+           starter data was given real history; see js/data.js. -->
       <div class="window">
         <div class="window__bar">
           <span class="window__title">REVENUE_BY_MONTH</span>
         </div>
         <div class="window__body">
-          <canvas id="chart-revenue" class="chart" width="640" height="260"
+          <canvas id="chart-revenue" class="chart" width="640" height="300"
                   role="img" aria-label="Revenue won per month"></canvas>
-          <!-- The same numbers in text, for anyone who cannot see the chart. -->
           <p class="sr-only" id="chart-revenue-text"></p>
-        </div>
-      </div>
-
-      <!-- Chart 2: total deal value held at each pipeline stage. -->
-      <div class="window">
-        <div class="window__bar">
-          <span class="window__title">VALUE_BY_STAGE</span>
-        </div>
-        <div class="window__body">
-          <canvas id="chart-stage" class="chart" width="640" height="260"
-                  role="img" aria-label="Total deal value by pipeline stage"></canvas>
-          <p class="sr-only" id="chart-stage-text"></p>
         </div>
       </div>
     </div>
 
     <!-- ============================================================
-         Export / import. Given its own window because it is the only
-         place in the app that reads or writes a real file.
+         Forecast. The dashboard shows what has already happened;
+         this projects what the open pipeline is actually worth once
+         the historical win rate is applied to it.
+         ============================================================ -->
+    <div class="window terminal">
+      <div class="window__bar">
+        <span class="window__title">FORECAST.OUT</span>
+      </div>
+      <div class="window__body">
+        <pre class="terminal__table" id="forecast-table"></pre>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         Export / import. The only place in the app that reads or
+         writes a real file.
          ============================================================ -->
     <div class="window">
       <div class="window__bar">

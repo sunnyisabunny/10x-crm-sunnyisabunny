@@ -253,6 +253,71 @@
   border-top: 1px dashed color-mix(in srgb, var(--phosphor) 35%, transparent);
 }
 
+/* ---- Findings: the actionable half of the diagnostic ----------------
+   Colour-coded by severity, but never by colour alone — the level is
+   also spelled out in words in the title bar, so the panel still reads
+   correctly without colour perception. */
+.finding {
+  border-color: var(--accent);
+}
+
+.finding .window__bar {
+  background-image: var(--gloss-spec),
+    linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 45%, #000));
+  animation: none;   /* no iridescent pan on a warning */
+}
+
+.finding--fail {
+  border-color: var(--danger);
+  box-shadow: var(--lift), var(--bloom-md) var(--danger);
+}
+
+.finding--fail .window__bar {
+  background-image: var(--gloss-spec),
+    linear-gradient(90deg, var(--danger), color-mix(in srgb, var(--danger) 45%, #000));
+}
+
+.finding--warn {
+  border-color: var(--warning);
+  box-shadow: var(--lift), var(--bloom-sm) var(--warning);
+}
+
+.finding--warn .window__bar {
+  background-image: var(--gloss-spec),
+    linear-gradient(90deg, var(--warning), color-mix(in srgb, var(--warning) 45%, #000));
+}
+
+.finding__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.finding__row:last-child { border-bottom: 0; }
+
+.finding__name {
+  font-size: var(--fs-base);
+  font-weight: 500;
+}
+
+.finding__meta {
+  font-size: var(--fs-xs);
+  color: var(--warning);
+}
+
+.finding__value {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+@media (max-width: 560px) {
+  .finding__row { grid-template-columns: 1fr auto; }
+  .finding__value { grid-column: 2; }
+}
+
 .analytics-grid {
   display: grid;
   gap: var(--sp-4);
