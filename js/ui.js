@@ -196,6 +196,20 @@ function showToast(message, type = 'success') {
     toast.remove();
   });
 
+  /*
+    Announce it, so anything else that cares can react.
+
+    A custom event is how one part of a page tells the rest that something
+    happened without needing to know who is listening. The assistant uses this
+    to draw his sword when an action succeeds. Calling him directly from here
+    would mean ui.js had to know he exists; this way it does not, he can be
+    deleted without touching a line of this file, and anything added later can
+    listen to the same event.
+  */
+  document.dispatchEvent(new CustomEvent('crm:toast', {
+    detail: { message, type },
+  }));
+
   return toast;
 }
 
