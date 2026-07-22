@@ -74,9 +74,7 @@
      faster than about 2s reads as a fault rather than atmosphere.
      All of it is switched off by prefers-reduced-motion. */
   --t-drift: 26s;     /* haze blobs wandering across the page */
-  --t-rain: 7s;       /* digital rain falling */
   --t-sweep: 9s;      /* horizontal scan pass */
-  --t-shimmer: 6s;    /* specular highlight travelling over chrome */
   --t-pulse: 2.4s;    /* status dots breathing */
 
   /* ---- Layout -------------------------------------------------- */
@@ -359,22 +357,6 @@
   --shadow-hard: 4px 4px 0 var(--bevel-dark);
   --shadow-hard-sm: 2px 2px 0 var(--bevel-dark);
   --shadow-hard-lg: 6px 6px 0 var(--bevel-dark);
-
-  /* The active-window title bar. Now the iridescent ramp rather
-     than a two-stop fade, and sized at 300% so it can be scrolled
-     under the element to make the sheen travel. */
-  --titlebar: var(--iri);
-
-  /* ---- Composites -------------------------------------------
-     Whole recipes, so a component asks for "a chrome panel"
-     instead of restating five properties and drifting from its
-     neighbours.
-
-     Order matters in --chrome-panel: the gloss gradient must come
-     FIRST so it sits on top of the surface colour underneath it.
-     Backgrounds paint first-to-last, front-to-back. */
-  --chrome-panel: var(--gloss-face), linear-gradient(var(--surface), var(--surface));
-  --chrome-raised: var(--gloss-face), linear-gradient(var(--surface-up), var(--surface-up));
 
   /* A lifted chrome object: shadow underneath, hard bevel on the
      face, bright hairline along the top edge. The shadow itself is a
