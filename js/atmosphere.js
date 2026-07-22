@@ -370,15 +370,26 @@ const HAUNT_WARP_FRAC = 0.07;
    soft liquid wobble. */
 const HAUNT_SLICES = 26;
 
+/* How many figures may be on screen at once, calm and during a breach.
+   The haunt used to be a single figure at a time; the founder asked for more,
+   so it is a small pool now. Kept low in the calm state so the room is active
+   without being a crowd, and opened up under breach. */
+const HAUNT_MAX = 3;
+const HAUNT_MAX_BREACH = 6;
+
 /* How tall a figure stands, as a fraction of the viewport.
+
+   Scaled DOWN from 0.22/0.16 at the founder's request — the faces and hands
+   were reading too large. Handprints are deliberately NOT scaled with them
+   (see HAUNT_PRINT_*): they were asked to stay their current size.
 
    Deliberately modest. A figure at nearly full viewport height reads as a
    wallpaper photograph rather than as something in the room behind the
    interface, and at that size it cannot fit beside the content — so it ends up
    underneath a panel where nobody ever sees it. Smaller means it can stand in
    the gutter, in the open, where it is actually visible. */
-const HAUNT_MIN_H = 0.22;
-const HAUNT_VAR_H = 0.16;
+const HAUNT_MIN_H = 0.15;
+const HAUNT_VAR_H = 0.11;
 
 /* ---- The handprint layer ----------------------------------------------
    Prints are not left BY anything. No hand precedes them and none follows.
@@ -418,7 +429,7 @@ let apparitionSheet = null;
 let apparitionReady = false;
 
 let fogBanks = [];
-let haunt = null;          // the apparition currently on screen, or null
+let haunts = [];           // the apparitions currently on screen (0..HAUNT_MAX)
 let hauntNextAt = 0;       // seconds on the atmosphere clock until the next one
 let hauntClock = 0;        // seconds since the haunt started running
 let hauntPrint = null;     // the handprint currently on screen, or null
@@ -455,7 +466,7 @@ function resetHaunt() {
       near: i >= Math.floor(FOG_COUNT / 2),      // painted over the figure
     });
   }
-  haunt = null;
+  haunts = [];
   hauntPrint = null;
   hauntClock = 0;
   hauntNextAt = 1.5;      // the first figure arrives almost at once now
@@ -552,6 +563,10 @@ function spawnApparition() {
     return;
   }
 
+  /* Schedule the next arrival now. One figure enters per gap; the cap on how
+     many may be present at once is enforced by the caller. */
+  hauntNextAt = hauntClock + (HAUNT_GAP_MIN + Math.random() * HAUNT_GAP_VAR) * gapScale();
+
   const index = APPARITION_FACE_FIRST
     + Math.floor(Math.random() * (APPARITION_HAND_LAST - APPARITION_FACE_FIRST + 1));
 
@@ -560,7 +575,7 @@ function spawnApparition() {
   const width = APPARITION_CELL_W * scale;
   const spot = hauntFreeSpot(width, height);
 
-  haunt = {
+  haunts.push({
     index,
     scale,
     w: width,
@@ -570,7 +585,7 @@ function spawnApparition() {
     flip: Math.random() < 0.5,
     phase: Math.random() * Math.PI * 2,
     born: hauntClock,
-  };
+  });
 }
 
 /** Choose the next handprint. Same placement rule, its own clock. */
@@ -689,27 +704,28 @@ function moveFog(dt) {
  * straight out of the loaded image is about as cheap as canvas work gets,
  * which matters because this runs behind every page.
  */
-function drawApparition(presence) {
-  const { sx, sy } = apparitionCell(haunt.index);
+function drawApparition(figure, presence) {
+  const { sx, sy } = apparitionCell(figure.index);
   const srcSlice = APPARITION_CELL_H / HAUNT_SLICES;
-  const dstSlice = haunt.h / HAUNT_SLICES;
+  const dstSlice = figure.h / HAUNT_SLICES;
 
   /* The warp travels: the phase advances with the clock, so the deformation
-     runs down the figure rather than sitting still in it. */
-  const phase = haunt.phase + hauntClock * 1.1;
+     runs down the figure rather than sitting still in it. Each figure keeps
+     its own phase, so two on screen at once never ripple in unison. */
+  const phase = figure.phase + hauntClock * 1.1;
 
   /* It flattens as it presses. Something pushed hard against glass has less
      slack in it than something still coming through the fog, and dropping the
      amplitude at the peak is what sells the contact. */
-  const amount = haunt.w * HAUNT_WARP_FRAC * (1.15 - presence * 0.55);
+  const amount = figure.w * HAUNT_WARP_FRAC * (1.15 - presence * 0.55);
 
   atmosCtx.save();
   atmosCtx.globalAlpha = presence;
-  if (haunt.flip) {
-    atmosCtx.translate(haunt.x + haunt.w, 0);
+  if (figure.flip) {
+    atmosCtx.translate(figure.x + figure.w, 0);
     atmosCtx.scale(-1, 1);
   } else {
-    atmosCtx.translate(haunt.x, 0);
+    atmosCtx.translate(figure.x, 0);
   }
 
   for (let i = 0; i < HAUNT_SLICES; i += 1) {
@@ -721,7 +737,7 @@ function drawApparition(presence) {
     atmosCtx.drawImage(
       apparitionSheet,
       sx, sy + i * srcSlice, APPARITION_CELL_W, srcSlice + 1,
-      dx, haunt.y + i * dstSlice, haunt.w, dstSlice + 1
+      dx, figure.y + i * dstSlice, figure.w, dstSlice + 1
     );
   }
 
@@ -758,16 +774,19 @@ function drawHaunt(dt) {
      own is a complete background, so a slow connection sees a quiet room
      rather than a broken one. */
   if (apparitionReady) {
-    if (!haunt && hauntClock >= hauntNextAt) spawnApparition();
+    /* One figure enters per elapsed gap, up to the cap. spawnApparition sets
+       the next gap itself; the cap opens up under breach so the easter egg
+       floods the room. */
+    const cap = hauntBreach ? HAUNT_MAX_BREACH : HAUNT_MAX;
+    if (haunts.length < cap && hauntClock >= hauntNextAt) spawnApparition();
 
-    if (haunt) {
-      const p = (hauntClock - haunt.born) / HAUNT_LIFE;
-      if (p >= 1) {
-        haunt = null;
-        hauntNextAt = hauntClock + (HAUNT_GAP_MIN + Math.random() * HAUNT_GAP_VAR) * gapScale();
-      } else {
-        drawApparition(hauntPresence(p));
-      }
+    /* Draw the living figures and drop the finished ones. Iterated back to
+       front so a splice does not skip the next figure. */
+    for (let i = haunts.length - 1; i >= 0; i -= 1) {
+      const figure = haunts[i];
+      const p = (hauntClock - figure.born) / HAUNT_LIFE;
+      if (p >= 1) haunts.splice(i, 1);
+      else drawApparition(figure, hauntPresence(p));
     }
 
     /* The print layer, on its own clock, deliberately unrelated to the above. */
