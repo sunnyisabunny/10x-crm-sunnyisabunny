@@ -105,8 +105,12 @@ function syncAtmosphere() {
 
   atmosCanvas.style.opacity = String(atmosTheme === 'light' ? HAUNT_OPACITY : RAIN_OPACITY);
 
-  if (atmosTheme === 'light') resetHaunt();
-  else resetRain();
+  if (atmosTheme === 'light') {
+    ensureApparitionSheet();
+    resetHaunt();
+  } else {
+    resetRain();
+  }
 }
 
 /**
@@ -291,14 +295,17 @@ function drawRain() {
 /* ============================================================
    ATMOSPHERE 2 — THE HAUNT (light theme)
 
-   Three layers, painted back to front on every frame:
+   Three things happen on this canvas, back to front:
 
      far fog        slow banks, established first so there is depth
      the apparition rises out of the far fog, presses, recedes
      near fog       painted OVER it, so it never fully resolves
 
-   That sandwich is the whole illusion. A silhouette drawn on top of fog is a
-   sticker; a silhouette drawn INSIDE fog is something in the room.
+   That sandwich is the whole illusion. A figure drawn on top of fog is a
+   sticker; a figure drawn INSIDE fog is something in the room.
+
+   Handprints are deliberately not part of that cycle — they are their own
+   slow layer, on their own clock, and nothing is ever shown making them.
    ============================================================ */
 
 /* How faint the whole layer is. Lower than the rain's, because this sits
@@ -307,11 +314,36 @@ function drawRain() {
    can see. */
 const HAUNT_OPACITY = 0.5;
 
-/* Fog banks. Five is enough to never look like a repeating pattern and few
+/*
+  THE APPARITION ATLAS.
+
+  Built from assets/ghosts.png by scratchpad/extract-ghosts.mjs: eight
+  sculpted faces, eight skeletal hands, eight bloody handprints, cut out of
+  their concrete and packed into a uniform grid. Faces and hands were re-inked
+  into a dark tonal range on the way through, because they are pale grey in
+  the source and this theme's fog is pale too — drawn as they came they would
+  have been invisible. Something approaching through fog reads as a darkening
+  silhouette in any case.
+
+  Indices are contiguous by kind, so picking "a random hand" is arithmetic
+  rather than a lookup table.
+*/
+const APPARITION_SRC = 'assets/apparitions.png';
+const APPARITION_CELL_W = 144;
+const APPARITION_CELL_H = 184;
+const APPARITION_COLS = 4;
+const APPARITION_FACE_FIRST = 0;
+const APPARITION_FACE_LAST = 7;
+const APPARITION_HAND_FIRST = 8;
+const APPARITION_HAND_LAST = 15;
+const APPARITION_PRINT_FIRST = 16;
+const APPARITION_PRINT_LAST = 23;
+
+/* Fog banks. Five is enough never to look like a repeating pattern and few
    enough that the per-frame gradient work stays trivial. */
 const FOG_COUNT = 5;
 
-/* Seconds an apparition takes from first appearing to gone. */
+/* Seconds an apparition takes from first surfacing to gone. */
 const HAUNT_LIFE = 11;
 
 /* Seconds of empty fog between apparitions, minimum and extra-random.
@@ -320,11 +352,11 @@ const HAUNT_LIFE = 11;
 const HAUNT_GAP_MIN = 14;
 const HAUNT_GAP_VAR = 22;
 
-/* How far, in path units, a slice can be pushed sideways. Rendered and looked
-   at across a range before this was chosen: below about 3 the figure stays a
-   clean symmetrical mask and reads as a logo, and above about 9 the fingers
-   of a hand merge into one another. */
-const HAUNT_WARP = 6.5;
+/* How far a slice can be pushed sideways, as a fraction of the figure's own
+   width. Rendered across a range and looked at before it was chosen: below
+   about 3% the figure stays symmetrical and reads as a sticker, and above
+   about 11% a hand's fingers merge into each other. */
+const HAUNT_WARP_FRAC = 0.07;
 
 /* How many horizontal slices a figure is cut into. The stepping between
    slices is not a defect to be smoothed away — it is the same analog-tearing
@@ -332,120 +364,61 @@ const HAUNT_WARP = 6.5;
    soft liquid wobble. */
 const HAUNT_SLICES = 26;
 
-/*
-  THE APPARITIONS.
+/* How tall a figure stands, as a fraction of the viewport.
 
-  SVG path data, exactly as authored, handed to Path2D — which accepts the
-  `d` attribute of an SVG <path> directly. So this is real vector art with no
-  image request, no binary asset in the repo, and nothing to fall out of sync
-  with a source file that no longer exists.
+   Deliberately modest. A figure at nearly full viewport height reads as a
+   wallpaper photograph rather than as something in the room behind the
+   interface, and at that size it cannot fit beside the content — so it ends up
+   underneath a panel where nobody ever sees it. Smaller means it can stand in
+   the gutter, in the open, where it is actually visible. */
+const HAUNT_MIN_H = 0.22;
+const HAUNT_VAR_H = 0.16;
 
-  Filled with the even-odd rule, which is what lets the eye and mouth
-  subpaths cut holes out of the head. It is also why every hand is drawn as
-  ONE continuous outline including its thumb: a separate thumb subpath would
-  overlap the palm and, under even-odd, punch a hole through it instead of
-  joining on.
+/* ---- The handprint layer ----------------------------------------------
+   Prints are not left BY anything. No hand precedes them and none follows.
+   They simply fade up on empty glass, sit there, and fade out — which is
+   more unpleasant than showing the cause, because there isn't one. They run
+   on their own clock and the two layers never coordinate. */
+const HAUNT_PRINT_LIFE = 26;
+const HAUNT_PRINT_GAP_MIN = 14;
+const HAUNT_PRINT_GAP_VAR = 22;
 
-  `box` is the authored bounding box, and the only thing that maps these
-  coordinates onto the screen.
-*/
-const HAUNT_FIGURES = [
-  /* Screaming. Head elongated downwards, mouth pulled into a long vertical
-     oval — the single most legible horror silhouette there is. */
-  {
-    box: [100, 124],
-    d: 'M50 6 C31 6 19 22 18 42 C17 58 21 72 27 86 C32 98 41 118 50 118'
-     + ' C59 118 68 98 73 86 C79 72 83 58 82 42 C81 22 69 6 50 6 Z'
-     + ' M27 41 C33 32 46 34 50 45 C45 53 30 52 27 41 Z'
-     + ' M51 45 C55 34 68 32 73 41 C69 52 55 53 51 45 Z'
-     + ' M42 66 C46 61 54 61 58 66 C61 76 60 95 50 102 C40 95 39 76 42 66 Z',
-  },
-  /* Smeared sideways, as though the head were dragged during a long
-     exposure. Features slide right and down out of alignment. */
-  {
-    box: [100, 112],
-    d: 'M44 8 C25 11 15 27 17 47 C19 64 27 79 39 93 C47 102 58 107 66 102'
-     + ' C77 96 81 83 79 67 C77 47 70 27 61 15 C57 9 50 7 44 8 Z'
-     + ' M28 47 C35 42 47 44 51 49 C45 53 32 53 28 47 Z'
-     + ' M56 54 C62 50 70 52 73 57 C68 60 60 59 56 54 Z'
-     + ' M37 73 C46 68 59 71 63 78 C57 86 44 84 37 73 Z',
-  },
-  /* Head tilted back, jaw hanging open. Reads as something looking upward
-     rather than at you, which is worse. */
-  {
-    box: [100, 120],
-    d: 'M48 14 C30 14 19 28 20 46 C21 60 27 70 35 78 C41 84 45 92 47 102'
-     + ' C49 112 58 114 64 108 C72 100 80 88 84 73 C88 57 85 34 75 23'
-     + ' C68 15 58 14 48 14 Z'
-     + ' M30 40 C37 32 51 35 55 44 C49 51 34 50 30 40 Z'
-     + ' M55 62 C65 56 77 62 79 74 C77 88 64 96 54 91 C47 83 47 69 55 62 Z',
-  },
-  /* Half-formed. Only one eye resolves; the other side never arrives. The
-     most useful of the four, because it is the one that looks like the fog
-     failed to finish rendering something. */
-  {
-    box: [100, 118],
-    d: 'M52 4 C34 6 24 22 24 44 C24 62 30 80 40 96 C46 106 54 114 62 112'
-     + ' C70 110 74 98 74 84 C74 60 70 30 64 16 C61 8 57 3 52 4 Z'
-     + ' M36 46 C42 40 52 42 55 49 C50 54 39 53 36 46 Z'
-     + ' M40 76 C48 72 60 74 64 80 C58 85 46 83 40 76 Z',
-  },
-  /* A splayed palm with the thumb out.
+/* Prints are drawn at a fraction of viewport height, and never warped: a mark
+   on the glass is on the glass, and wobbling it would say it was behind. */
+const HAUNT_PRINT_MIN_H = 0.09;
+const HAUNT_PRINT_VAR_H = 0.06;
 
-     Proportions matter more than detail at this size. The palm is nearly
-     square and tapers to a narrow wrist; the middle finger is clearly the
-     longest and the little finger clearly the shortest. Get that ordering
-     wrong and the shape stops reading as a hand however good the curves are,
-     which is exactly what the first attempt got wrong — it came out a
-     cartoon mitten. */
-  {
-    box: [100, 144],
-    d: 'M38 142 L34 128 C28 122 25 118 25 112'
-     + ' C18 114 10 112 5 106 C2 102 4 96 9 95 C15 94 22 96 26 92'
-     + ' C25 82 25 74 26 64'
-     + ' L27 30 C27 22 32 19 37 20 C41 21 43 26 43 33 L43 60'
-     + ' L45 15 C45 8 50 5 55 6 C59 7 60 12 60 19 L58 58'
-     + ' L64 21 C65 14 70 11 74 13 C78 15 78 21 77 27 L72 61'
-     + ' L79 42 C81 36 86 34 89 37 C92 40 91 45 89 50 L80 68'
-     + ' C82 82 82 98 80 110 C78 124 70 134 60 140 L58 142 Z',
-  },
-  /* Fingers curled and trailing, as if the hand were sliding down the glass
-     rather than pushing against it. */
-  {
-    box: [100, 146],
-    d: 'M40 144 L35 130 C29 124 26 119 26 113'
-     + ' C19 118 10 117 5 111 C2 106 5 100 10 100 C16 100 22 102 27 98'
-     + ' C26 88 26 78 28 68'
-     + ' L18 38 C15 31 19 25 25 26 C30 27 33 33 34 40 L42 62'
-     + ' L31 22 C29 14 34 9 39 10 C44 11 46 17 47 24 L52 58'
-     + ' L58 20 C59 13 65 10 69 13 C73 16 73 22 71 29 L66 60'
-     + ' L80 46 C84 41 90 42 90 48 C90 54 85 58 80 61 L74 70'
-     + ' C79 84 79 100 77 112 C75 126 68 136 60 142 L58 144 Z',
-  },
-  /* Pressed completely flat, fingers together. The palm becomes a broad
-     paddle and the fingers survive only as three narrow slits, which is
-     genuinely what a hand looks like pushed hard against frosted glass — the
-     contact area whitens out and the separations are all that is left. The
-     least figurative of the seven, and the most unsettling precisely because
-     it takes a moment to resolve. */
-  {
-    box: [104, 128],
-    d: 'M50 124 C34 123 24 112 23 97 C22 78 25 55 29 37'
-     + ' C31 25 39 18 49 18 C61 18 71 23 77 33'
-     + ' C85 47 89 71 87 91 C85 110 70 124 50 124 Z'
-     + ' M39 26 C41 23 44 24 44 27 C45 40 45 54 44 64 C42 67 39 66 38 62'
-     + ' C37 50 37 36 39 26 Z'
-     + ' M54 23 C56 20 59 21 59 25 C60 39 59 55 58 65 C56 68 53 67 53 63'
-     + ' C52 49 52 34 54 23 Z'
-     + ' M69 32 C71 29 74 31 74 34 C74 46 72 59 70 67 C68 69 65 68 65 64'
-     + ' C66 51 67 42 69 32 Z',
-  },
-];
+/* They sit at a lower peak than the figures do, so a print never competes
+   with body text sitting on top of it. */
+const HAUNT_PRINT_PEAK = 0.62;
+
+let apparitionSheet = null;
+let apparitionReady = false;
 
 let fogBanks = [];
 let haunt = null;          // the apparition currently on screen, or null
 let hauntNextAt = 0;       // seconds on the atmosphere clock until the next one
 let hauntClock = 0;        // seconds since the haunt started running
+let hauntPrint = null;     // the handprint currently on screen, or null
+let hauntPrintNextAt = 0;
+
+/**
+ * Fetch the atlas, once, the first time the light theme is actually used.
+ *
+ * Not on page load: it is half a megabyte, and someone who never leaves the
+ * dark theme should never pay for it. This is the same reasoning that took
+ * the live blurs off thirty client cards earlier in this branch.
+ */
+function ensureApparitionSheet() {
+  if (apparitionSheet) return;
+
+  apparitionSheet = new Image();
+  apparitionSheet.onload = () => { apparitionReady = true; };
+  /* A missing atlas leaves the fog running on its own rather than throwing.
+     The fog alone is still a complete background. */
+  apparitionSheet.onerror = () => { apparitionReady = false; };
+  apparitionSheet.src = APPARITION_SRC;
+}
 
 /** Fresh fog and an empty stage. */
 function resetHaunt() {
@@ -461,45 +434,134 @@ function resetHaunt() {
     });
   }
   haunt = null;
+  hauntPrint = null;
   hauntClock = 0;
-  hauntNextAt = 3;   // a short first wait, so the theme does not look inert
+  hauntNextAt = 3;        // a short first wait, so the theme does not look inert
+  hauntPrintNextAt = 7;   // the first print arrives early, and unannounced
+}
+
+/** True while the user is being asked to read or decide something. */
+function hauntBlocked() {
+  return document.querySelector('.overlay:not([hidden])') !== null;
+}
+
+/**
+ * Find somewhere the interface is not.
+ *
+ * The first version of this just pushed figures towards the left and right
+ * quarters of the viewport, which sounds equivalent and is not: the content
+ * column is centred and capped at --shell-max, so on a wide screen "the
+ * quarter" is still partly under the panels and on a narrow one it is entirely
+ * under them. Most apparitions were therefore spending their whole life behind
+ * a client card, which is a lot of machinery for something nobody can see.
+ *
+ * So the actual content box is measured and the figure is put in the gutter
+ * beside it. `.shell` is the wrapper every page lays its content in, so one
+ * lookup answers the question on all six. Measured at spawn only — never per
+ * frame — because reading a layout box forces the browser to settle the layout
+ * first, which is exactly the kind of cost this file has been cleared of.
+ */
+function hauntFreeSpot(w, h) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let boxLeft = vw * 0.18;
+  let boxRight = vw * 0.82;
+
+  const shell = document.querySelector('.shell');
+  if (shell) {
+    const rect = shell.getBoundingClientRect();
+    if (rect.width > 0) { boxLeft = rect.left; boxRight = rect.right; }
+  }
+
+  /* Only offer a gutter that can actually hold the figure. A 40px strip is
+     not somewhere a person stands. */
+  const gutters = [];
+  if (boxLeft >= w * 0.75) gutters.push([-w * 0.12, boxLeft - w * 0.88]);
+  if (vw - boxRight >= w * 0.75) gutters.push([boxRight - w * 0.12, vw - w * 0.88]);
+
+  let x;
+  if (gutters.length) {
+    const [lo, hi] = gutters[Math.floor(Math.random() * gutters.length)];
+    x = lo + Math.random() * Math.max(0, hi - lo);
+  } else {
+    /* Nothing fits beside the content — a narrow window. Hang the figure off
+       the very edge so at least half of it is in the open. */
+    x = Math.random() < 0.5 ? -w * 0.42 : vw - w * 0.58;
+  }
+
+  /* Clear of the taskbar at the top, and clear of the bottom-left corner where
+     the assistant stands. */
+  const top = vh * 0.08;
+  const bottom = Math.max(top, vh * 0.92 - h);
+  let y = top + Math.random() * (bottom - top);
+
+  const nearAssistant = x < 220 && y + h > vh - 200;
+  if (nearAssistant) y = Math.max(top, vh - 200 - h);
+
+  return { x, y };
 }
 
 /**
  * Choose the next apparition and where it stands.
  *
- * Figures are placed towards the edges of the screen on purpose. The middle of
- * the viewport is where the interface is, and something looming directly
- * behind a client's name is not atmospheric, it is a legibility bug.
+ * Faces and hands only — prints are not apparitions and are never spawned
+ * here.
  */
 function spawnApparition() {
-  /* Not while a modal is open. A modal exists because the user is being asked
-     to read or decide something, and the whole app is dimmed behind it. This
-     is checked here, once, rather than in the draw loop — a DOM query per
-     frame is exactly the kind of thing this file was just cleaned of. */
-  if (document.querySelector('.overlay:not([hidden])')) {
+  /* A modal exists because the user is being asked to act, and the whole app
+     is dimmed behind it. Checked here, once, rather than in the draw loop: a
+     DOM query per frame is exactly what this file was cleaned of. */
+  if (hauntBlocked()) {
     hauntNextAt = hauntClock + 4;
     return;
   }
 
-  const figure = HAUNT_FIGURES[Math.floor(Math.random() * HAUNT_FIGURES.length)];
-  const height = window.innerHeight * (0.42 + Math.random() * 0.3);
-  const scale = height / figure.box[1];
-  const edge = Math.random() < 0.5 ? 0 : 1;
+  const index = APPARITION_FACE_FIRST
+    + Math.floor(Math.random() * (APPARITION_HAND_LAST - APPARITION_FACE_FIRST + 1));
+
+  const height = window.innerHeight * (HAUNT_MIN_H + Math.random() * HAUNT_VAR_H);
+  const scale = height / APPARITION_CELL_H;
+  const width = APPARITION_CELL_W * scale;
+  const spot = hauntFreeSpot(width, height);
 
   haunt = {
-    path: new Path2D(figure.d),
-    box: figure.box,
+    index,
     scale,
-    /* Out towards one side, with enough variation that it is never the same
-       two positions over and over. */
-    x: edge
-      ? window.innerWidth * (0.66 + Math.random() * 0.22)
-      : window.innerWidth * (0.06 + Math.random() * 0.18),
-    y: window.innerHeight * (0.12 + Math.random() * 0.3),
-    /* Half of them come through facing the other way. */
+    w: width,
+    h: height,
+    x: spot.x,
+    y: spot.y,
     flip: Math.random() < 0.5,
     phase: Math.random() * Math.PI * 2,
+    born: hauntClock,
+  };
+}
+
+/** Choose the next handprint. Same placement rule, its own clock. */
+function spawnHandprint() {
+  if (hauntBlocked()) {
+    hauntPrintNextAt = hauntClock + 8;
+    return;
+  }
+
+  const index = APPARITION_PRINT_FIRST
+    + Math.floor(Math.random() * (APPARITION_PRINT_LAST - APPARITION_PRINT_FIRST + 1));
+
+  const height = window.innerHeight * (HAUNT_PRINT_MIN_H + Math.random() * HAUNT_PRINT_VAR_H);
+  const scale = height / APPARITION_CELL_H;
+  const width = APPARITION_CELL_W * scale;
+  const spot = hauntFreeSpot(width, height);
+
+  hauntPrint = {
+    index,
+    w: width,
+    h: height,
+    x: spot.x,
+    y: spot.y,
+    flip: Math.random() < 0.5,
+    /* A hand landing on glass is never perfectly square to it. */
+    tilt: (Math.random() - 0.5) * 0.5,
     born: hauntClock,
   };
 }
@@ -519,6 +581,13 @@ function hauntPresence(p) {
   return Math.max(0, 1 - (p - 0.70) / 0.30);                  // withdrawing
 }
 
+/** A print fades up, sits, and fades away. No press, no retreat. */
+function printPresence(p) {
+  if (p < 0.12) return (p / 0.12) * HAUNT_PRINT_PEAK;
+  if (p < 0.72) return HAUNT_PRINT_PEAK;
+  return HAUNT_PRINT_PEAK * Math.max(0, 1 - (p - 0.72) / 0.28);
+}
+
 /**
  * The membrane warp: how far a given slice is pushed sideways.
  *
@@ -532,6 +601,14 @@ function hauntWarpAt(unit, phase, amount) {
     Math.sin(unit * Math.PI * 2.2 + phase) * amount
     + Math.sin(unit * Math.PI * 5.7 + phase * 1.7) * amount * 0.35
   );
+}
+
+/** Where a sprite index sits in the atlas. */
+function apparitionCell(index) {
+  return {
+    sx: (index % APPARITION_COLS) * APPARITION_CELL_W,
+    sy: Math.floor(index / APPARITION_COLS) * APPARITION_CELL_H,
+  };
 }
 
 /** Paint the fog banks whose `near` flag matches. */
@@ -572,85 +649,65 @@ function moveFog(dt) {
 /**
  * Draw the apparition, warped, in horizontal slices.
  *
- * WHY IT IS PRE-RENDERED
- * The obvious way to do this is to clip to each slice and fill the path again
- * inside it — twenty-six full path fills per frame. Instead the figure is
- * filled ONCE into an offscreen canvas when it spawns, and each frame simply
- * blits twenty-six strips of that image at different horizontal offsets.
- * A strip copy is enormously cheaper than a path fill, and the result is
- * pixel-identical.
+ * Each slice is a strip of the atlas cell blitted at its own horizontal
+ * offset. Nothing is allocated and nothing is pre-rendered: a strip copy
+ * straight out of the loaded image is about as cheap as canvas work gets,
+ * which matters because this runs behind every page.
  */
 function drawApparition(presence) {
-  const sheet = haunt.sheet;
-  const sliceH = sheet.height / HAUNT_SLICES;
+  const { sx, sy } = apparitionCell(haunt.index);
+  const srcSlice = APPARITION_CELL_H / HAUNT_SLICES;
+  const dstSlice = haunt.h / HAUNT_SLICES;
 
   /* The warp travels: the phase advances with the clock, so the deformation
      runs down the figure rather than sitting still in it. */
   const phase = haunt.phase + hauntClock * 1.1;
 
-  /* It flattens as it presses. A hand pushed hard against glass has less
-     slack in it than one still coming through the fog, and dropping the
+  /* It flattens as it presses. Something pushed hard against glass has less
+     slack in it than something still coming through the fog, and dropping the
      amplitude at the peak is what sells the contact. */
-  const amount = HAUNT_WARP * haunt.scale * (1.15 - presence * 0.55);
+  const amount = haunt.w * HAUNT_WARP_FRAC * (1.15 - presence * 0.55);
 
   atmosCtx.save();
   atmosCtx.globalAlpha = presence;
-  atmosCtx.translate(haunt.x, haunt.y);
-  if (haunt.flip) atmosCtx.scale(-1, 1);
+  if (haunt.flip) {
+    atmosCtx.translate(haunt.x + haunt.w, 0);
+    atmosCtx.scale(-1, 1);
+  } else {
+    atmosCtx.translate(haunt.x, 0);
+  }
 
   for (let i = 0; i < HAUNT_SLICES; i += 1) {
-    const sy = i * sliceH;
     const dx = hauntWarpAt(i / HAUNT_SLICES, phase, amount);
 
-    /* The +1 on the height overlaps each strip into the next by a pixel.
-       Without it, rounding leaves hairline gaps between the slices and the
-       figure comes out looking like a venetian blind. */
+    /* The +1 on the heights overlaps each strip into the next. Without it,
+       rounding leaves hairline gaps and the figure comes out looking like a
+       venetian blind. */
     atmosCtx.drawImage(
-      sheet,
-      0, sy, sheet.width, sliceH + 1,
-      dx, sy, sheet.width, sliceH + 1
+      apparitionSheet,
+      sx, sy + i * srcSlice, APPARITION_CELL_W, srcSlice + 1,
+      dx, haunt.y + i * dstSlice, haunt.w, dstSlice + 1
     );
   }
 
   atmosCtx.restore();
 }
 
-/**
- * Render one figure into an offscreen canvas, once.
- *
- * Two passes. The silhouette itself in --apparition, and then — only when it
- * presses — a slightly smaller, paler copy on top. That second pass is the
- * whitening you get where skin actually touches frosted glass, and it is the
- * detail that makes the press read as contact rather than as the figure
- * simply getting darker.
- */
-function renderApparitionSheet(presence) {
-  const [bw, bh] = haunt.box;
-  const w = Math.ceil(bw * haunt.scale);
-  const h = Math.ceil(bh * haunt.scale);
+/** Draw the handprint. Flat, unwarped, slightly off-square. */
+function drawHandprint(presence) {
+  const { sx, sy } = apparitionCell(hauntPrint.index);
 
-  const sheet = document.createElement('canvas');
-  sheet.width = w;
-  sheet.height = h;
-
-  const ctx = sheet.getContext('2d');
-  if (!ctx) return null;
-
-  ctx.scale(haunt.scale, haunt.scale);
-  ctx.fillStyle = atmosColors.apparition;
-  ctx.fill(haunt.path, 'evenodd');
-
-  if (presence > 0.75) {
-    ctx.globalAlpha = (presence - 0.75) * 2.2;
-    ctx.globalCompositeOperation = 'source-atop';
-    ctx.translate(bw / 2, bh / 2);
-    ctx.scale(0.9, 0.9);
-    ctx.translate(-bw / 2, -bh / 2);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fill(haunt.path, 'evenodd');
-  }
-
-  return sheet;
+  atmosCtx.save();
+  atmosCtx.globalAlpha = presence;
+  atmosCtx.translate(hauntPrint.x + hauntPrint.w / 2, hauntPrint.y + hauntPrint.h / 2);
+  atmosCtx.rotate(hauntPrint.tilt);
+  if (hauntPrint.flip) atmosCtx.scale(-1, 1);
+  atmosCtx.drawImage(
+    apparitionSheet,
+    sx, sy, APPARITION_CELL_W, APPARITION_CELL_H,
+    -hauntPrint.w / 2, -hauntPrint.h / 2, hauntPrint.w, hauntPrint.h
+  );
+  atmosCtx.restore();
 }
 
 /** Draw one frame of the haunt. */
@@ -662,29 +719,33 @@ function drawHaunt(dt) {
 
   drawFog(false);
 
-  if (!haunt && hauntClock >= hauntNextAt) spawnApparition();
+  /* Nothing figurative until the atlas has actually arrived. The fog on its
+     own is a complete background, so a slow connection sees a quiet room
+     rather than a broken one. */
+  if (apparitionReady) {
+    if (!haunt && hauntClock >= hauntNextAt) spawnApparition();
 
-  if (haunt) {
-    const p = (hauntClock - haunt.born) / HAUNT_LIFE;
-
-    if (p >= 1) {
-      haunt = null;
-      hauntNextAt = hauntClock + HAUNT_GAP_MIN + Math.random() * HAUNT_GAP_VAR;
-    } else {
-      const presence = hauntPresence(p);
-
-      /* Rebuilding the sheet allocates a canvas and fills the path again, so
-         it is done as rarely as the picture allows: once when the figure
-         arrives, and then only while the contact highlight is actually
-         changing — and even then only when it has changed by enough to see.
-         Quantising to twentieths turns roughly fifty rebuilds per apparition
-         into about five, with no visible difference. */
-      const step = Math.round(presence * 20);
-      if (!haunt.sheet || (presence > 0.75 && step !== haunt.sheetStep)) {
-        haunt.sheet = renderApparitionSheet(presence) || haunt.sheet;
-        haunt.sheetStep = step;
+    if (haunt) {
+      const p = (hauntClock - haunt.born) / HAUNT_LIFE;
+      if (p >= 1) {
+        haunt = null;
+        hauntNextAt = hauntClock + HAUNT_GAP_MIN + Math.random() * HAUNT_GAP_VAR;
+      } else {
+        drawApparition(hauntPresence(p));
       }
-      if (haunt.sheet) drawApparition(presence);
+    }
+
+    /* The print layer, on its own clock, deliberately unrelated to the above. */
+    if (!hauntPrint && hauntClock >= hauntPrintNextAt) spawnHandprint();
+
+    if (hauntPrint) {
+      const p = (hauntClock - hauntPrint.born) / HAUNT_PRINT_LIFE;
+      if (p >= 1) {
+        hauntPrint = null;
+        hauntPrintNextAt = hauntClock + HAUNT_PRINT_GAP_MIN + Math.random() * HAUNT_PRINT_GAP_VAR;
+      } else {
+        drawHandprint(printPresence(p));
+      }
     }
   }
 
