@@ -194,6 +194,41 @@ function renderForecast(metrics) {
    Charts
    ================================================================== */
 
+/* ------------------------------------------------------------------
+   DRAWING CHARTS BY HAND
+
+   There is no charting library here, partly because the assignment forbids
+   libraries and partly because these two charts are about sixty lines of
+   arithmetic each. Worth understanding, because a canvas is genuinely
+   different from the rest of the DOM:
+
+   A canvas is ONE element containing a grid of pixels. Nothing inside it is
+   an element — there is no bar you can inspect, click or style, only paint on
+   a surface. That has three consequences this file has to handle:
+
+     1. Position is arithmetic. Nothing lays itself out, so every bar's x, y,
+        width and height is calculated here.
+     2. Nothing redraws itself. CSS repaints when the theme changes; a canvas
+        keeps whatever was painted, which is why the theme toggle explicitly
+        redraws these (see the bottom of the file).
+     3. A screen reader sees an image with no content. That is why each chart
+        writes a plain-sentence summary into a visually hidden paragraph
+        beside it.
+
+   The co-ordinate system starts at the TOP-left and y grows DOWNWARDS, which
+   is upside-down from how a graph is normally described. That single fact is
+   why "taller bar" is written as a SMALLER y below, and it is the most common
+   thing to get wrong when reading canvas code.
+   ------------------------------------------------------------------ */
+
+/**
+ * Read a colour out of the live theme.
+ *
+ * The colours are not hardcoded, because they have to change with the theme —
+ * and because a canvas cannot use `var(--phosphor)` the way CSS can. So the
+ * value is looked up from the computed styles of <body> at drawing time and
+ * handed to the canvas as an ordinary colour string.
+ */
 function chartColor(name) {
   return getComputedStyle(document.body).getPropertyValue(name).trim() || '#00F0FF';
 }
@@ -231,23 +266,43 @@ function drawFunnel(clients) {
   ctx.font = '12px "JetBrains Mono", monospace';
   ctx.textBaseline = 'middle';
 
-  const top = 26;
-  const bandHeight = 54;
-  const gap = 26;
-  const maxWidth = width - 200;
-  const centre = width / 2 - 40;
+  /* The geometry. Everything below is measured from these five numbers, so
+     changing the shape of the funnel means changing them and nothing else.
+     `centre` is pulled 40px left of the true middle to leave room on the right
+     for the drop-off labels. */
+  const top = 26;             // where the first band starts
+  const bandHeight = 54;      // how tall each band is
+  const gap = 26;             // vertical space between bands, where labels go
+  const maxWidth = width - 200;   // the width of a band at 100%
+  const centre = width / 2 - 40;  // the vertical axis the bands are centred on
   const accent = chartColor('--phosphor');
   const dim = chartColor('--text-dim');
   const danger = chartColor('--danger');
 
   stages.forEach((stage, i) => {
+    /* Each band's width is its share of the FIRST stage, so the top band is
+       always full width and every one below is visibly narrower. Guarding
+       against a count of zero matters: 0/0 is NaN, and a NaN width draws
+       nothing at all rather than throwing, which is the kind of bug that
+       looks like "the chart is broken" with no error in the console. */
     const share = stages[0].count === 0 ? 0 : stage.count / stages[0].count;
+
+    /* A minimum of 6px so a stage with one client out of two hundred is still
+       a visible sliver rather than an invisible zero-width rectangle. */
     const bandWidth = Math.max(maxWidth * share, 6);
+
+    /* Stacking downwards: each band drops by its own height plus one gap. */
     const y = top + i * (bandHeight + gap);
 
+    /* Filled first, then outlined, because the outline has to sit on top. The
+       fill fades as the funnel narrows — later stages are fewer deals, and the
+       lighter fill reinforces that visually. */
     ctx.fillStyle = accent;
     ctx.globalAlpha = 0.22 + 0.26 * (1 - i / stages.length);
     ctx.fillRect(centre - bandWidth / 2, y, bandWidth, bandHeight);
+    /* globalAlpha is a setting on the context, not an argument, so it stays in
+       force until something changes it back. Forgetting this line would make
+       every later shape on this canvas semi-transparent. */
     ctx.globalAlpha = 1;
 
     ctx.strokeStyle = accent;
@@ -287,6 +342,18 @@ function drawFunnel(clients) {
     + `Lost ${byStatus('Lost')}.`;
 }
 
+/**
+ * Set up a chart: clear the canvas, work out the plot area, draw the grid.
+ *
+ * THE PLOT AREA is the rectangle the data is actually allowed to occupy. It is
+ * the canvas inset by four paddings, and those paddings exist to hold things
+ * that are not data: the money labels down the left, the month labels along
+ * the bottom. Without reserving that space, a long label like "$120,000" would
+ * be drawn off the left edge and simply not appear.
+ *
+ * Returns the numbers the caller needs to place bars, or null if there is no
+ * 2-D context — callers check for null rather than assuming.
+ */
 function beginChart(canvas, maxValue) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
@@ -300,6 +367,12 @@ function beginChart(canvas, maxValue) {
   ctx.font = '11px "JetBrains Mono", monospace';
   ctx.textBaseline = 'middle';
 
+  /* Four gridlines, evenly spaced, each labelled with the value it represents.
+     Read the y calculation carefully, because it is the line that trips people
+     up on canvas: it starts at plotBottom and SUBTRACTS, because y grows
+     downwards. Line 0 is at the bottom (value 0) and line 4 is at the top
+     (value maxValue) — the opposite of what the arithmetic looks like at a
+     glance. */
   const steps = 4;
   for (let i = 0; i <= steps; i += 1) {
     const y = plotBottom - ((plotBottom - plotTop) * i) / steps;
@@ -332,16 +405,33 @@ function drawRevenueChart(clients) {
   const buckets = [];
   const now = new Date();
 
+  /*
+    STEP 1 — build one empty bucket per month, oldest first.
+
+    The months are created BEFORE looking at any client, which is the important
+    part: it means a month with no revenue still gets a slot and still appears
+    on the chart as a zero. Building buckets from the data instead would skip
+    empty months silently, and the line would join March to June as though
+    nothing had happened in between. A gap in a time series is information.
+
+    `new Date(year, month - back, 1)` handles the year boundary by itself:
+    month -1 is December of the previous year, so counting back from January
+    needs no special case.
+  */
   for (let back = ANALYTICS_MONTHS - 1; back >= 0; back -= 1) {
     const when = new Date(now.getFullYear(), now.getMonth() - back, 1);
     buckets.push({
       label: when.toLocaleDateString(undefined, { month: 'short' }),
+      /* Year AND month are both stored, so December 2025 cannot be matched by
+         December 2026 when the chart spans a year boundary. */
       year: when.getFullYear(),
       month: when.getMonth(),
       total: 0,
     });
   }
 
+  /* STEP 2 — drop each won deal into the month it closed in. Deals older than
+     the window find no bucket and are simply ignored. */
   clients
     .filter((client) => client.status === 'Won')
     .forEach((client) => {
@@ -352,19 +442,45 @@ function drawRevenueChart(clients) {
       if (bucket) bucket.total += client.dealValue;
     });
 
+  /* STEP 3 — the scale. The floor of 1000 stops a CRM with no revenue from
+     dividing by zero below, which would make every y position NaN and draw an
+     empty chart with no error anywhere. */
   const max = Math.max(...buckets.map((b) => b.total), 1000);
   const frame = beginChart(canvas, max);
   if (!frame) return;
 
   const { ctx, plotLeft, plotRight, plotTop, plotBottom } = frame;
   const accent = chartColor('--phosphor');
+
+  /* Horizontal spacing: the plot width divided by the number of GAPS, which is
+     one less than the number of points — six months have five gaps between
+     them. Using buckets.length would leave a blank column on the right. */
   const step = (plotRight - plotLeft) / Math.max(buckets.length - 1, 1);
 
+  /*
+    Turn a bucket index into a point on the canvas.
+
+    x is straightforward. y is the line worth pausing on: it starts at the
+    BOTTOM of the plot and subtracts the bar's height, because canvas y grows
+    downwards. More revenue therefore means a SMALLER y. Getting this backwards
+    draws the chart upside down, which is the classic first-canvas bug.
+  */
   const pointAt = (i) => ({
     x: plotLeft + step * i,
     y: plotBottom - ((plotBottom - plotTop) * buckets[i].total) / max,
   });
 
+  /*
+    STEP 4 — the shaded area under the line.
+
+    A path is a shape described before it is drawn: moveTo puts the pen down,
+    each lineTo drags it, and closePath joins the end back to the start.
+    Nothing appears on screen until fill() or stroke() is called.
+
+    This path goes along the bottom, up through every data point, and back
+    down to the bottom right, so closePath seals a proper shape rather than a
+    line. Filling a shape that was not closed would give an odd triangle.
+  */
   ctx.beginPath();
   ctx.moveTo(plotLeft, plotBottom);
   buckets.forEach((_, i) => { const p = pointAt(i); ctx.lineTo(p.x, p.y); });
@@ -383,11 +499,20 @@ function drawRevenueChart(clients) {
   });
   ctx.strokeStyle = accent;
   ctx.lineWidth = 2;
+  /* shadowBlur on a stroke is how the neon glow is made: the line is drawn
+     once, and the browser paints a blurred copy of it underneath in
+     shadowColor. It has to be switched back to 0 afterwards, because like
+     globalAlpha it is a setting that stays in force and would put a glow
+     behind the plain month labels below. */
   ctx.shadowColor = accent;
   ctx.shadowBlur = 12;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
+  /* STEP 6 — a marker on each data point, and the month name underneath.
+     The marker is offset by half its own size (p.x - 3 for a 6px square) so
+     it is CENTRED on the point rather than hanging below and right of it:
+     fillRect measures from a rectangle's top-left corner, not its middle. */
   ctx.textAlign = 'center';
   buckets.forEach((bucket, i) => {
     const p = pointAt(i);
@@ -397,6 +522,9 @@ function drawRevenueChart(clients) {
     ctx.fillText(bucket.label, p.x, plotBottom + 16);
   });
 
+  /* STEP 7 — the same information as a sentence, in a visually hidden
+     paragraph. To a screen reader the canvas above is an image with no
+     content; without this, everything the chart says is simply unavailable. */
   document.getElementById('chart-revenue-text').textContent =
     `Revenue won per month: ${buckets.map((b) => `${b.label} ${formatMoney(b.total)}`).join(', ')}.`;
 }
