@@ -74,20 +74,19 @@
      faster than about 2s reads as a fault rather than atmosphere.
      All of it is switched off by prefers-reduced-motion. */
   --t-drift: 26s;     /* haze blobs wandering across the page */
-  --t-rain: 7s;       /* digital rain falling */
   --t-sweep: 9s;      /* horizontal scan pass */
-  --t-shimmer: 6s;    /* specular highlight travelling over chrome */
   --t-pulse: 2.4s;    /* status dots breathing */
 
   /* ---- Layout -------------------------------------------------- */
   --tap-min: 44px;          /* accessibility floor for any control */
   --shell-max: 1200px;
 
-  /* The strip along the left edge that belongs to RONIN and nothing else.
-     His canvas is 104px, he sits 16px in from the edge, and the rest is a
-     gutter so content never touches him. Used by base.css to keep the page
-     out of his way — see the note there. */
-  --ronin-strip: 136px;
+  /* The strip along the left edge that belongs to the assistant and nothing
+     else. It is sized for the WIDER of the two bodies — RONIN's canvas is now
+     137px (the light theme's survivor is narrower) — plus the 16px he sits in
+     from the edge and a gutter so content never touches him. Used by base.css
+     to keep the page out of his way — see the note there. */
+  --ronin-strip: 170px;
   --card-max: 420px;        /* auth card width, per P1.1 */
 }
 
@@ -151,6 +150,14 @@
   --glass-blur: blur(14px) saturate(150%);
   --chrome-edge: rgba(255, 255, 255, 0.16);
 
+  /* The same glass, for surfaces that are NOT allowed a live blur.
+     backdrop-filter is the most expensive property in this stylesheet,
+     and a page can hold thirty client cards and six stat tiles. Those
+     get this instead: a little more opacity to stand in for the frost,
+     and no per-frame blur at all. Only the few large structural
+     surfaces — windows, the taskbar, toasts — keep the real thing. */
+  --glass-solid: rgba(16, 20, 31, 0.88);
+
   /* ---- LAYER 2: BLOOM ---------------------------------------
      Offset and blur only — the COLOUR is supplied where it is
      used, so one token serves every accent:
@@ -174,84 +181,149 @@
 
   /* ---- Terminal / Matrix vocabulary -------------------------- */
   --phosphor: #39FF14;
-  --rain-color: rgba(57, 255, 20, 0.5);
-  --rain-alpha: 1;
+
+  /* ---- What the canvas atmosphere paints (js/atmosphere.js) ---
+     One canvas, two atmospheres. Dark falls: --phosphor is the rain.
+     The fog and apparition tokens below are the light theme's job and
+     are never used here, but they are declared in both themes so the
+     painter can read the same four names whichever theme is active and
+     never has to branch on colour. */
+  --fog-far: transparent;
+  --fog-near: transparent;
+  --apparition: transparent;
+
+  /* Shadow cast by a lifted object. Pulled out of --lift so each theme
+     can say how heavy its own gravity is. */
+  --lift-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
 }
 
 /* ============================================================
-   LIGHT THEME — "Y2K frosted chrome"
-   Translucent icy blue-white: iMac G3 / WinAmp candy plastic.
-   Accents are darkened so that white text on a filled control and
-   accent-coloured text on --surface both clear 4.5:1 contrast.
+   LIGHT THEME — "Soft Club, Haunted"
+
+   Not a lightened dark theme. Its own aesthetic, sharing the dark
+   theme's skeleton and nothing else.
+
+   Two references, held in tension:
+
+     GEN X SOFT CLUB (1996-2002) — the cool, muted, low-saturation
+     reaction against Y2K's glitter. Frosted glass, brushed aluminium,
+     translucent plastics, subway-signage typography. Strictly cool
+     tones: slate, surgical white, icy blue, pale green. It is the
+     "future that never existed", and it is calm.
+
+     EARLY-2000s SURVIVAL HORROR — Silent Hill's fogbank and Resident
+     Evil 4's ochre rot. This is what stops the calm being bland: the
+     whites go ashen, every accent is pulled towards decay rather than
+     candy, the vignette closes in, and things move behind the fog.
+
+   The result should feel like a clean clinical interface installed
+   somewhere it should not be. Dark is neon and alive; light is pale
+   and wrong. They share every measurement and every component.
+
+   Accents are darkened until white text on a filled control AND
+   accent-coloured text on --surface both clear 4.5:1. Verified, not
+   assumed — see the contrast check in the verification notes.
    ============================================================ */
 [data-theme="light"] {
-  --bg-void: #DCE4F0;
-  --bg-deep: #E8EEF7;
-  --surface: #F4F7FC;
-  --surface-up: #FFFFFF;
+  /* Ashen, with a faint green cast. A pure blue-white would read as a
+     clean product; the green is what makes it read as damp. */
+  --bg-void: #C8CDC6;
+  --bg-deep: #D6DAD3;
+  --surface: #E9ECE6;
+  --surface-up: #F5F7F2;
 
-  --bevel-light: #FFFFFF;
-  --bevel-dark: #A8B4CC;
-  --border: #9AA8C4;
+  /* A soft press into paper rather than a moulded plastic edge. */
+  --bevel-light: #FDFEFC;
+  --bevel-dark: #A6ADA4;
+  --border: #9AA396;
 
-  --text: #0A1020;
-  --text-dim: #3D4A66;
-  --text-faint: #6A7691;
+  --text: #14171A;
+  --text-dim: #454B4E;
+  --text-faint: #61676B;
 
-  --cyan: #00708A;
-  --magenta: #B01060;
-  --lime: #3F7000;
-  --amber: #8A5600;
-  --violet: #6B21C8;
+  /* Every accent is a soft-club colour taken somewhere unpleasant. */
+  --cyan: #1B6070;      /* clinical teal — the icy blue, drained */
+  --magenta: #8E2334;   /* dried blood */
+  --lime: #47632E;      /* moss */
+  --amber: #7A5709;     /* nicotine ochre */
+  --violet: #4B4568;    /* bruise slate */
 
   --on-accent: #FFFFFF;
 
-  --grid-line: rgba(154, 168, 196, 0.3);
-  --scanline-alpha: 0.02;
-  --glow-strength: 7px;
+  /* The blueprint grid becomes faint pencil ruling on damp paper. */
+  --grid-line: rgba(120, 130, 118, 0.22);
+  --scanline-alpha: 0.03;
 
-  /* ---- LAYER 1: CHROME (candy plastic) ----------------------
-     The light theme is where this look is most at home: an iMac
-     G3 / Aqua button is a white glare over a colour, not a flat
-     fill. So the gloss here is far stronger than in dark, where
-     the same treatment would wash the neon out. */
+  /* ---- LAYER 1: FROST ---------------------------------------
+     Dark's gloss is moulded plastic: a bright top, a hard mid-line
+     where the glass breaks, a darker bottom. Frost has no break in
+     it. This is one soft wash from milky to shadowed, which is what
+     a sheet of frosted glass actually looks like. */
   --gloss-face: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.50) 45%,
-    rgba(150, 175, 205, 0.14) 46%,
-    rgba(120, 145, 180, 0.26) 100%
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 255, 255, 0.34) 42%,
+    rgba(198, 206, 196, 0.10) 74%,
+    rgba(138, 148, 136, 0.20) 100%
   );
 
   --gloss-spec: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 1),
-    rgba(255, 255, 255, 0) 70%
+    rgba(255, 255, 255, 0.62),
+    rgba(255, 255, 255, 0) 78%
   );
 
-  --glass: rgba(255, 255, 255, 0.66);
-  --glass-blur: blur(14px) saturate(170%);
-  --chrome-edge: rgba(255, 255, 255, 0.9);
+  --glass: rgba(240, 243, 237, 0.60);
+  --glass-solid: rgba(238, 241, 235, 0.92);
 
-  /* Bloom is dialled well down. On a light background a wide glow
-     turns into grey mush and eats the contrast that body text
-     depends on. */
-  --bloom-sm: 0 0 4px;
-  --bloom-md: 0 0 10px;
-  --bloom-lg: 0 0 20px;
+  /* saturate() BELOW 1 is the whole trick. Every other frosted-glass
+     effect on the web saturates upwards to look vivid and expensive.
+     Draining the colour instead is the bleach-bypass look these two
+     references share — soft club got it from photography, survival
+     horror got it from bad video. */
+  --glass-blur: blur(16px) saturate(0.7);
+  --chrome-edge: rgba(255, 255, 255, 0.82);
 
+  /* ---- LAYER 2: NO BLOOM ------------------------------------
+     Switched off completely, not merely dialled down. Dark glows
+     because it is full of light sources; this room has none. Every
+     glow in the app resolves to nothing here, which is why the focus
+     ring in base.css keeps a real 2px outline underneath it. */
+  --bloom-sm: 0 0 0;
+  --bloom-md: 0 0 0;
+  --bloom-lg: 0 0 0;
+  --glow-strength: 0px;
+
+  /* Gravity is softer and greyer than dark's hard black. */
+  --lift-shadow: 0 5px 16px rgba(70, 78, 68, 0.22);
+
+  /* Iridescence becomes ink. A printed slate header, not a CD sheen —
+     still a five-stop loop so it can occupy exactly the same token,
+     but every stop is a shade of the same wet slate. */
   --iri: linear-gradient(
     115deg,
-    var(--violet), var(--cyan), var(--magenta), var(--lime), var(--violet)
+    #3B454B, #56636A, #2C353A, #47535A, #3B454B
   );
 
-  --haze-a: radial-gradient(closest-side, rgba(0, 190, 230, 0.20), transparent);
-  --haze-b: radial-gradient(closest-side, rgba(255, 130, 200, 0.18), transparent);
-  --vignette: radial-gradient(ellipse at center, transparent 55%, rgba(90, 110, 145, 0.20) 100%);
+  /* ---- The fog ----------------------------------------------
+     Two banks rather than two coloured clouds: cold damp, and the
+     ochre rot that hangs underneath it. */
+  --haze-a: radial-gradient(closest-side, rgba(146, 164, 166, 0.38), transparent);
+  --haze-b: radial-gradient(closest-side, rgba(158, 138, 106, 0.30), transparent);
 
-  --phosphor: #1E7A05;
-  --rain-color: rgba(80, 120, 160, 0.30);
-  --rain-alpha: 0.5;
+  /* Far heavier than dark's. On a pale page a closing vignette is the
+     single strongest dread signal available, and it costs nothing. */
+  --vignette: radial-gradient(ellipse at center, transparent 34%, rgba(58, 64, 56, 0.42) 100%);
+
+  --phosphor: #33604A;   /* damp moss, where dark has phosphor green */
+
+  /* ---- What the canvas paints -------------------------------
+     Read once by js/atmosphere.js. --apparition is the silhouette ink;
+     the two fogs sandwich it, so a figure rises out of --fog-far and
+     is never quite resolved because --fog-near is painted over it. */
+  --fog-far: rgba(190, 199, 189, 0.55);
+  --fog-near: rgba(214, 220, 212, 0.42);
+  --apparition: #5E6A62;
 }
 
 /* ============================================================
@@ -287,27 +359,19 @@
   --shadow-hard-sm: 2px 2px 0 var(--bevel-dark);
   --shadow-hard-lg: 6px 6px 0 var(--bevel-dark);
 
-  /* The active-window title bar. Now the iridescent ramp rather
-     than a two-stop fade, and sized at 300% so it can be scrolled
-     under the element to make the sheen travel. */
-  --titlebar: var(--iri);
-
-  /* ---- Composites -------------------------------------------
-     Whole recipes, so a component asks for "a chrome panel"
-     instead of restating five properties and drifting from its
-     neighbours.
-
-     Order matters in --chrome-panel: the gloss gradient must come
-     FIRST so it sits on top of the surface colour underneath it.
-     Backgrounds paint first-to-last, front-to-back. */
-  --chrome-panel: var(--gloss-face), linear-gradient(var(--surface), var(--surface));
-  --chrome-raised: var(--gloss-face), linear-gradient(var(--surface-up), var(--surface-up));
-
-  /* A lifted chrome object: bloom underneath, hard bevel on the
-     face, bright hairline along the top edge. */
-  --lift: 0 6px 22px rgba(0, 0, 0, 0.45),
+  /* A lifted chrome object: shadow underneath, hard bevel on the
+     face, bright hairline along the top edge. The shadow itself is a
+     per-theme token — dark casts hard black, light casts a soft grey,
+     and a shadow that suited one looked broken in the other. */
+  --lift: var(--lift-shadow),
           inset 0 1px 0 var(--chrome-edge),
           var(--bevel-out);
+
+  /* The analytics terminal's well. Shared by both themes on purpose —
+     see the note in pages.css. It lives here rather than as a literal
+     colour in that file because this project's own rule is that no
+     component may hardcode a raw value, and it was the last one left. */
+  --terminal-well: #040A04;
 
   /* Focus is a bloom now, not a flat ring. The 2px solid ring is
      kept underneath it so focus is still visible for anyone who

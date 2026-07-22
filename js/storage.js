@@ -195,6 +195,46 @@ function saveTheme(theme) {
 }
 
 /* ------------------------------------------------------------------
+   Easter-egg state — sessionStorage, deliberately NOT localStorage
+
+   The two easter eggs (CRT mode in the dark theme, the breach in the light
+   theme) are toggled with the Konami code. This app is several separate pages,
+   so every click in the taskbar is a fresh document with a fresh <body> that
+   has neither class on it — which is why an egg switched on used to vanish the
+   moment you navigated. Their state has to be stored and re-applied on load.
+
+   It lives in sessionStorage, not localStorage, on purpose:
+
+     - It should survive moving between pages AND switching browser tabs within
+       the same tab session, which sessionStorage does.
+     - It should NOT greet you on your next visit — an easter egg that is still
+       on tomorrow is a bug, not a surprise. sessionStorage dies with the tab.
+     - Keeping it out of localStorage means the app's data model stays at
+       exactly the four keys the assignment names. This is not a fifth key.
+
+   Each theme's egg is its own flag on one small object, so the two are
+   independent: turning one on never touches the other.
+   ------------------------------------------------------------------ */
+const EGG_KEY = 'crm_eggs';
+
+function getEggs() {
+  try {
+    return JSON.parse(sessionStorage.getItem(EGG_KEY)) || {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveEggs(eggs) {
+  try {
+    sessionStorage.setItem(EGG_KEY, JSON.stringify(eggs));
+  } catch (error) {
+    /* sessionStorage can be blocked in privacy modes. The egg then simply does
+       not persist across pages, which is harmless — it is decoration. */
+  }
+}
+
+/* ------------------------------------------------------------------
    First-run seeding
    ------------------------------------------------------------------ */
 

@@ -124,7 +124,13 @@ function createClientCard(client) {
   value.className = 'client-card__value';
   value.textContent = formatMoney(client.dealValue);
 
-  figures.append(value, createStatusBadge(client.status));
+  /* Badge and heartbeat travel together: the badge says what the stage is,
+     the trace says how alive it looks. */
+  const statusRow = document.createElement('div');
+  statusRow.className = 'status-row';
+  statusRow.append(createStatusBadge(client.status), createVitals(client.status));
+
+  figures.append(value, statusRow);
 
   /* Status dropdown, so a deal can be moved along without opening anything.
      Options come from CLIENT_STATUSES, so a new stage appears here for free. */
@@ -174,6 +180,32 @@ function createStatusBadge(status) {
   badge.className = `badge badge--${status.toLowerCase()}`;
   badge.textContent = status;
   return badge;
+}
+
+/**
+ * The heartbeat readout that sits beside the badge.
+ *
+ * A won deal has a strong pulse, a contacted one a faint one, a lead a single
+ * sparse blip, and a lost deal flatlines. All four traces and the colour live
+ * in CSS — see section 20 of components.css — so this only has to name the
+ * status, exactly as createStatusBadge does.
+ *
+ * aria-hidden because it is a second telling of something the badge right next
+ * to it already states in words. A screen reader announcing "Won, heartbeat
+ * graphic" is noise, and the information is never carried by the trace alone.
+ */
+function createVitals(status) {
+  const vitals = document.createElement('span');
+  vitals.className = `vitals vitals--${status.toLowerCase()}`;
+  vitals.setAttribute('aria-hidden', 'true');
+
+  /* The trace is a child rather than the box itself: the box is the window,
+     and the child is the strip that slides behind it. */
+  const trace = document.createElement('span');
+  trace.className = 'vitals__trace';
+  vitals.append(trace);
+
+  return vitals;
 }
 
 /**

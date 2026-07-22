@@ -55,6 +55,14 @@
 
       <div class="window__body">
         <pre class="terminal__log" id="scan-log" aria-live="polite"></pre>
+
+        <!-- The monitor the scan is running on. Decorative and aria-hidden:
+             it reports nothing, it is the sound of the room. Same component
+             as the per-client readout on the clients page, stretched wide
+             and dropped to a whisper. -->
+        <span class="vitals vitals--panel vitals--won" aria-hidden="true">
+          <span class="vitals__trace"></span>
+        </span>
       </div>
     </div>
 
@@ -103,6 +111,13 @@
       </div>
       <div class="window__body">
         <pre class="terminal__table" id="forecast-table"></pre>
+
+        <!-- The faint trace rather than the strong one: a forecast is a
+             quieter instrument than a live scan. Both panels share the
+             panel variant's slower scroll; only the shape differs. -->
+        <span class="vitals vitals--panel vitals--contacted" aria-hidden="true">
+          <span class="vitals__trace"></span>
+        </span>
       </div>
     </div>
 

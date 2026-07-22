@@ -458,9 +458,12 @@ label.btn { cursor: pointer; }
   gap: var(--sp-4);
   align-items: center;
   padding: var(--sp-4);
-  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  /* NO backdrop-filter here, deliberately — see the note on --glass-solid
+     in tokens.css. There are thirty of these on the clients page, and
+     thirty live blur layers over a moving background is the single most
+     expensive thing this app was doing. The fill is opaque enough that
+     the difference is not visible; the cost difference is enormous. */
+  background-image: var(--gloss-face), linear-gradient(var(--glass-solid), var(--glass-solid));
   border: 1px solid var(--chrome-edge);
   border-radius: var(--r-3);
   box-shadow: var(--shadow-hard-sm);
@@ -471,7 +474,12 @@ label.btn { cursor: pointer; }
 
 /* A thin iridescent seam down the leading edge. Hidden until hover, so
    a list of thirty cards is not thirty rainbows — it only lights up on
-   the one you are pointing at. */
+   the one you are pointing at.
+
+   The ANIMATION is on the hover state too, not just the opacity. It used
+   to run unconditionally: thirty cards each repainting a scrolling
+   gradient, forever, all of them invisible at opacity 0. Being unable to
+   see an animation does not stop the browser drawing it. */
 .client-card::before {
   content: "";
   position: absolute;
@@ -481,7 +489,6 @@ label.btn { cursor: pointer; }
   background-size: 100% 300%;
   opacity: 0;
   transition: opacity var(--t-fast);
-  animation: iri-slide 6s linear infinite;
 }
 
 @keyframes iri-slide {
@@ -494,7 +501,10 @@ label.btn { cursor: pointer; }
   box-shadow: var(--shadow-hard), var(--bloom-md) var(--accent);
 }
 
-.client-card:hover::before { opacity: 1; }
+.client-card:hover::before {
+  opacity: 1;
+  animation: iri-slide 6s linear infinite;
+}
 
 .client-card::after {
   content: "";
@@ -819,9 +829,10 @@ label.btn { cursor: pointer; }
   position: relative;
   overflow: hidden;
   padding: var(--sp-4);
-  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  /* Opaque fill rather than a live blur, for the same reason as
+     .client-card — there are four to six of these on a page, sitting
+     directly under the sweep. */
+  background-image: var(--gloss-face), linear-gradient(var(--glass-solid), var(--glass-solid));
   border: 1px solid var(--chrome-edge);
   border-radius: var(--r-3);
   box-shadow: var(--lift);
@@ -1067,8 +1078,16 @@ label.btn { cursor: pointer; }
    second stylesheet.
 
    Note the class lands on <body>, not <html>, so custom properties
-   inherit down to everything inside including body::before. */
-body.crt-mode {
+   inherit down to everything inside including body::before.
+
+   SCOPED TO THE DARK THEME. CRT mode is the dark theme's easter egg — a
+   phosphor tube belongs on a black screen, not a pale one — and the light
+   theme has its own (the breach, section 19.7). Scoping it here means the two
+   can never render at the same time: each theme's saved egg flag can be on
+   independently, but only the one matching the current theme is ever drawn, so
+   they cannot stack. The default theme always carries data-theme="dark", so
+   this matches whenever the light theme is not active. */
+[data-theme="dark"] body.crt-mode {
   --text: var(--phosphor);
   --text-dim: color-mix(in srgb, var(--phosphor) 65%, transparent);
   --text-faint: color-mix(in srgb, var(--phosphor) 40%, transparent);
@@ -1087,9 +1106,6 @@ body.crt-mode {
 
   --border: color-mix(in srgb, var(--phosphor) 45%, transparent);
   --chrome-edge: color-mix(in srgb, var(--phosphor) 55%, transparent);
-  --rain-color: var(--phosphor);
-  --rain-alpha: 1;
-
   --scanline-alpha: 0.34;
   --glow-strength: 20px;
 
@@ -1101,21 +1117,22 @@ body.crt-mode {
   text-shadow: 0 0 8px var(--phosphor);
 }
 
-/* Heavier vignette and a hard flicker on the glass. */
-body.crt-mode::before {
+/* Heavier vignette and a hard flicker on the glass. The sweep is not
+   named here any more: it lives on body::after now, where it is moved
+   by a transform, and it keeps running on its own. */
+[data-theme="dark"] body.crt-mode::before {
   --vignette: radial-gradient(ellipse at center, transparent 28%, rgba(0, 0, 0, 0.92) 100%);
-  animation: crt-sweep var(--t-sweep) linear infinite,
-             flicker 110ms steps(2, end) infinite;
+  animation: flicker 110ms steps(2, end) infinite;
 }
 
 /* Chromatic aberration: the red and blue guns very slightly out of
    convergence, which is what makes a real tube look like a real tube. */
-body.crt-mode .window__title,
-body.crt-mode .stat__value,
-body.crt-mode .client-card__name,
-body.crt-mode h1,
-body.crt-mode h2,
-body.crt-mode h3 {
+[data-theme="dark"] body.crt-mode .window__title,
+[data-theme="dark"] body.crt-mode .stat__value,
+[data-theme="dark"] body.crt-mode .client-card__name,
+[data-theme="dark"] body.crt-mode h1,
+[data-theme="dark"] body.crt-mode h2,
+[data-theme="dark"] body.crt-mode h3 {
   text-shadow:
     0 0 10px var(--phosphor),
     -1px 0 rgba(255, 0, 90, 0.55),
@@ -1386,4 +1403,360 @@ body.crt-mode h3 {
   }
 
   .toast { min-width: 0; max-width: none; }
+}
+
+/* ============================================================
+   19. THE LIGHT THEME'S OWN ACCENTS
+
+   Everything above this line is shared: both themes use the same
+   components, the same markup and the same measurements, and differ
+   only in the tokens those components read.
+
+   This block is the exception — the handful of places where "Soft
+   Club, Haunted" is not a recolouring of "Cyber Chrome" but a
+   different object. There are two kinds of rule here:
+
+     1. Switching OFF things that only make sense with light sources
+        behind them. Every glow in the app resolves to a grey smear on
+        a pale background, and a smear behind body text is a contrast
+        bug wearing a costume.
+
+     2. A small set of marks the dark theme never shows at all: the
+        stamped badge, the scratched divider, the damp corner. One
+        motif each, repeated, so they read as a system rather than as
+        noise.
+
+   SELECTOR RULE FOR THIS WHOLE BLOCK: [data-theme="light"] as a
+   DESCENDANT, never html[data-theme="light"]. The design-system
+   previews put the attribute on a <section> so both themes can be
+   shown side by side on one page, and an html-anchored selector
+   silently does nothing there.
+
+   The grit stays where it was agreed: texture and display type only.
+   No input, client name, money figure, date, error message or line of
+   body copy is touched by anything below.
+   ============================================================ */
+
+/* ---- 1. Switch off the glow ---------------------------------------
+   The bloom tokens are already zeroed in tokens.css, which handles
+   every box-shadow. These are the text-shadows, which are written as
+   literal blur radii at their call sites and so cannot be reached by
+   a token. The terminal is deliberately exempt: it stays a dark CRT
+   in a lit room, and a phosphor tube really does glow. */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] .auth__brand,
+[data-theme="light"] .auth__boot,
+[data-theme="light"] .clock {
+  text-shadow: none;
+}
+
+/* ---- 2. The title bar stops shimmering ----------------------------
+   In dark this is a CD surface: an iridescent ramp panning slowly
+   under a fixed specular glare. In light the same token is a wet
+   slate ramp, and printed slate does not move. Holding it still is
+   also what lets the bar read as the header of a document rather
+   than as a light fitting. */
+[data-theme="light"] .window__bar,
+[data-theme="light"] .taskbar::after {
+  animation: none;
+}
+
+/* ---- 3. Badges become rubber stamps -------------------------------
+   Dark's badge is a pixel dot that breathes. Light's is something
+   pressed onto the page by hand: squared off, letter-spaced wide,
+   knocked very slightly out of true, and inked unevenly.
+
+   The rotation is the whole trick, and it is deliberately tiny. At
+   0.8deg it reads as a stamp applied by a person; at 3deg it reads
+   as a CSS mistake. */
+[data-theme="light"] .badge {
+  padding: var(--sp-1) var(--sp-3);
+  border-width: 2px;
+  border-radius: var(--r-1);
+  letter-spacing: 0.14em;
+  transform: rotate(-0.8deg);
+  /* Ink sits heavier at the edges of a stamp than in the middle,
+     because that is where the rubber bites. */
+  background-image:
+    radial-gradient(ellipse at 50% 50%,
+      transparent 30%,
+      color-mix(in srgb, currentColor 16%, transparent) 100%);
+  background-color: color-mix(in srgb, currentColor 7%, transparent);
+  /* An offset second impression, as though the stamp rocked. */
+  box-shadow: 1px 1px 0 color-mix(in srgb, currentColor 22%, transparent);
+}
+
+/* The pixel dot has no business on a stamp — a stamp is one solid
+   impression, not a component with an indicator light. */
+[data-theme="light"] .badge::before {
+  display: none;
+}
+
+/* ---- 4. Scratched dividers ----------------------------------------
+   A 1px solid border is the most machine-made mark available. These
+   are the same lines, drawn instead as a repeating dash of uneven
+   lengths so the rule looks scored into the page rather than printed
+   on it. Borders become transparent and the mark moves to a gradient,
+   because a gradient can be irregular and a border cannot. */
+[data-theme="light"] .recent-row,
+[data-theme="light"] .finding__row,
+[data-theme="light"] .shortcut-row {
+  border-bottom-color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--border) 0 7px, transparent 7px 9px,
+    var(--border) 9px 30px, transparent 30px 31px,
+    var(--border) 31px 44px, transparent 44px 48px,
+    var(--border) 48px 96px, transparent 96px 97px
+  );
+  background-size: 97px 1px;
+  background-repeat: repeat-x;
+  background-position: 0 100%;
+}
+
+[data-theme="light"] .recent-row:last-of-type,
+[data-theme="light"] .finding__row:last-child,
+[data-theme="light"] .shortcut-row:last-child {
+  background-image: none;
+}
+
+/* ---- 5. The damp corner -------------------------------------------
+   One found mark, used once per window, top right. A stain where
+   something has soaked through from the other side of the page.
+
+   This is the only purely decorative addition in the block, and it is
+   kept to a single motif on purpose: the research on modern grunge is
+   blunt that one repeated mark reads as a system and three read as a
+   mess. It is also pointer-events: none and sits under the content,
+   so it can never interfere with anything. .window is already
+   position: relative, so this has something to anchor to. */
+[data-theme="light"] .window::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 140px;
+  height: 120px;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 0 var(--r-4) 0 0;
+  background-image:
+    radial-gradient(ellipse 70% 55% at 88% 8%,
+      rgba(122, 112, 88, 0.16) 0%,
+      rgba(122, 112, 88, 0.07) 45%,
+      transparent 72%),
+    radial-gradient(ellipse 40% 30% at 74% 26%,
+      rgba(104, 110, 96, 0.10) 0%,
+      transparent 70%);
+}
+
+/* The stain must never come between the user and the interface. */
+[data-theme="light"] .window__bar,
+[data-theme="light"] .window__body {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- 6. RONIN is printed, not lit ---------------------------------
+   His sprite carries a cyan bloom in dark, which is right: he is a
+   neon figure on a black screen. In light the same glow is a grey
+   halo around a pixel character. He gets a hard offset ink shadow
+   instead — the shadow of something sitting ON the page. */
+[data-theme="light"] .ronin__canvas {
+  filter: drop-shadow(2px 3px 0 rgba(70, 78, 68, 0.34));
+}
+
+/* His panel is the one surface in the light theme that keeps a border
+   of pure colour, because it is the one that has to be found quickly. */
+[data-theme="light"] .ronin__panel {
+  box-shadow: var(--lift);
+}
+
+/* ---- 7. BREACH — the light theme's easter egg ---------------------
+   The counterpart to the dark theme's CRT mode, triggered by the same
+   Konami code (see app.js). The JS half brightens the canvas and floods
+   it with figures; this is the room's half of it — the daylight drains
+   out of the corners and the walls breathe.
+
+   Built exactly like body.crt-mode::before above it: the vignette layer
+   is the one fixed sheet already sitting over the whole interface, so
+   overriding it here darkens everything including modals, and it is the
+   only thing touched — the scanlines on the same element and the sweep on
+   body::after are both left alone.
+
+   Scoped to the light theme through the html attribute, because breach is
+   a light-theme effect and its palette is the bruised red of one. The
+   selector is a descendant, matching the rest of section 19. */
+[data-theme="light"] body.breach-mode::before {
+  --vignette: radial-gradient(ellipse at center,
+    transparent 16%, rgba(46, 12, 18, 0.66) 100%);
+  animation: breach-breathe 3.6s ease-in-out infinite;
+}
+
+/* The corners pull in and ease back out — a room closing around you. */
+@keyframes breach-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.88; }
+  50%      { transform: scale(1.04); opacity: 1; }
+}
+
+/* ============================================================
+   20. VITALS — the heartbeat readout
+
+   A small instrument well beside a client's status, showing a trace
+   that says how alive the deal is:
+
+     Lead       a single sparse blip, slow — barely monitored yet
+     Contacted  a faint but regular rhythm
+     Won        a strong healthy QRS complex
+     Lost       flatline, and it does not move
+
+   BOTH THEMES. This is the one addition in this branch that is not a
+   light-theme thing: it is built entirely out of existing tokens, so
+   dark gets a neon readout and light gets an ink one from exactly the
+   same rules.
+
+   HOW IT IS DRAWN
+   The trace is an SVG line used as a MASK, not as an image, with the
+   colour supplied underneath by `background-color: currentColor`. That
+   indirection is the whole trick — an <img> would have its colour baked
+   in and would need four files per theme, whereas a mask takes its
+   colour from whatever the element inherits. The badge classes already
+   set that colour per status, so the readout matches its badge without
+   being told the status twice.
+
+   HOW IT MOVES
+   The trace element is twice the width of its window and the mask tiles
+   at half that, so exactly two periods sit side by side. Sliding it
+   left by 50% therefore lands the second period precisely where the
+   first was, and the loop is seamless with no visible jump. The slide
+   is a `transform`, so it runs on the compositor — which matters,
+   because a list of thirty clients means thirty of these running at
+   once and anything that repainted would be thirty repaints a frame.
+   ============================================================ */
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.vitals {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: 52px;
+  height: 20px;
+  overflow: hidden;
+  vertical-align: middle;
+
+  /* A recessed instrument well, the same one the dashboard clock sits in. */
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  box-shadow: var(--bevel-in);
+}
+
+.vitals__trace {
+  position: absolute;
+  inset: 0;
+  width: 200%;
+
+  background-color: currentColor;
+
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-size: 50% 100%;
+  mask-size: 50% 100%;
+  -webkit-mask-position: 0 50%;
+  mask-position: 0 50%;
+
+  animation: vitals-scroll 2.6s linear infinite;
+}
+
+@keyframes vitals-scroll {
+  to { transform: translateX(-50%); }
+}
+
+/* ---- Lead: one tiny blip, a lot of flat, slow ---------------------
+   The quietest of the three that is still alive. A single small
+   deflection sits alone in a long flatline and scrolls past slowly, so
+   a lead reads as "barely monitored yet" — and reads as plainly
+   DIFFERENT from a contacted client, which was the point of the change:
+   before, lead and contacted were both faint and looked alike. */
+.vitals--lead { color: var(--status-lead); }
+
+.vitals--lead .vitals__trace {
+  animation-duration: 3.8s;
+  opacity: 0.8;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L50 20 L53 17 L56 23 L59 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L50 20 L53 17 L56 23 L59 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* ---- Contacted: a clear, confident, regular beat ------------------
+   Now a proper single spike — a small dip into a tall clean peak — at
+   full strength, medium tempo. It is unmistakably a pulse, where the
+   lead is a twitch. That contrast is the whole distinction the two
+   stages are meant to carry. */
+.vitals--contacted { color: var(--status-contacted); }
+
+.vitals--contacted .vitals__trace {
+  animation-duration: 2.5s;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L40 20 L45 20 L48 24 L51 9 L54 31 L57 20 L62 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L40 20 L45 20 L48 24 L51 9 L54 31 L57 20 L62 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* ---- Won: a strong, healthy complex, fast -------------------------
+   The full P-QRS-T of a healthy beat, tallest of the three, and now
+   the FASTEST — a won deal has the most vigorous pulse in the list. */
+.vitals--won { color: var(--status-won); }
+
+.vitals--won .vitals__trace {
+  animation-duration: 1.3s;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L18 20 L22 17 L26 20 L38 20 L42 6 L46 34 L50 20 L62 20 L66 16 L70 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L18 20 L22 17 L26 20 L38 20 L42 6 L46 34 L50 20 L62 20 L66 16 L70 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* ---- Lost: flatline ------------------------------------------------
+   The animation is removed rather than slowed. A flatline that scrolls
+   is still moving, and movement is the one thing this state must not
+   have. */
+.vitals--lost { color: var(--status-lost); }
+
+.vitals--lost .vitals__trace {
+  animation: none;
+  transform: none;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* ---- The panel variant: a monitor running behind a readout ---------
+   Same component, stretched across the width of an analytics panel and
+   dropped to a whisper. It is not reporting on anything — it is the
+   sound of the room the diagnostic is being run in. */
+.vitals--panel {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin-top: var(--sp-3);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--phosphor);
+  opacity: 0.3;
+}
+
+.vitals--panel .vitals__trace {
+  -webkit-mask-size: 25% 100%;
+  mask-size: 25% 100%;
+  animation-duration: 4.2s;
+}
+
+/* Reduced motion: the trace stays, the scrolling stops. The SHAPE is the
+   information — a flatline still reads as a flatline standing still, and
+   the status is spelled out in words on the badge beside it regardless. */
+@media (prefers-reduced-motion: reduce) {
+  .vitals__trace { animation: none; }
 }

@@ -16,20 +16,34 @@
 /* ============================================================
    THE ATMOSPHERE STACK
 
-   Five layers, painted back to front. Everything except the grid
-   is a fixed, non-interactive pseudo-element, so the whole scene
-   stays put while the page scrolls through it — which is what
-   makes it read as depth rather than as wallpaper.
+   Six layers, painted back to front. Every one of them is a fixed,
+   non-interactive pseudo-element, so the whole scene stays put while
+   the page scrolls through it — which is what makes it read as depth
+   rather than as wallpaper.
 
-     html            void colour + blueprint grid
-     html::before    two drifting coloured haze clouds   z -2
-     body::after     digital rain                        z -1
+     html            void colour
+     html::after     blueprint grid                      z -4
+     html::before    two drifting coloured haze clouds   z -3
+     .rain           canvas atmosphere, js/atmosphere.js z -1
      ...content...
+     body::after     the refresh sweep                   z 9998
      body::before    scanlines + vignette                z 9999
 
    The negative z-indexes are why `body` must have NO background
-   of its own: a background on body would paint over both of the
-   layers sitting behind it.
+   of its own: a background on body would paint over every layer
+   sitting behind it.
+
+   EVERY MOVING LAYER HERE ANIMATES `transform` AND NOTHING ELSE.
+
+   That is not a style preference, it is the entire performance budget
+   of the page. A transform is handed to the compositor and costs
+   essentially nothing per frame. `background-position` — which all of
+   these layers used to animate — cannot be composited, so the browser
+   repainted the full viewport sixty times a second, forever, on every
+   page. The sweep was the worst of them by a wide margin, because it
+   sits ON TOP of the interface: every one of its repaints also forced
+   every frosted panel's backdrop-filter blur underneath to be
+   recalculated. That single layer was the app's largest running cost.
    ============================================================ */
 
 html {
@@ -38,27 +52,48 @@ html {
 
   background-color: var(--bg-void);
 
-  /* Dystopian blueprint grid. Two 1px gradients crossed at 32px make a
-     graph-paper field without a single image request. Fixed, so it reads
-     as a surface the page slides over rather than paper it is printed on. */
+  transition: background-color var(--t-med);
+}
+
+/* ---- The blueprint grid -------------------------------------------
+   Two 1px gradients crossed at 32px make a graph-paper field without a
+   single image request.
+
+   It lives on a fixed pseudo-element rather than on <html> itself. As a
+   root background it needed `background-attachment: fixed` to stay
+   still while the page scrolled past — and a fixed background is
+   re-rasterised on every single scroll frame. A fixed *element* is
+   painted once and then left alone. Identical picture, no scroll cost. */
+html::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -4;
+  pointer-events: none;
   background-image:
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
-  background-attachment: fixed;
-
-  transition: background-color var(--t-med);
 }
 
 /* ---- Haze: two coloured clouds, slowly wandering ------------------
    A flat page has no depth cues at all. Two large, very soft radial
-   gradients moving out of step with each other suggest volume behind
-   the interface without ever being identifiable as shapes. */
+   gradients suggest volume behind the interface without ever being
+   identifiable as shapes.
+
+   Both blobs ride one layer, so they now drift together rather than
+   past each other. That is the price of moving them with a transform
+   instead of a background-position, and it is worth paying: they are
+   60vmax of blurred colour at 15% alpha, and nobody alive can tell you
+   which of the two moved. The slow scale is what keeps the pair from
+   reading as one rigid slab sliding about. */
 html::before {
   content: "";
   position: fixed;
-  inset: -20%;
-  z-index: -2;
+  /* Generous overscan: the layer is translated and scaled up, and this
+     is what guarantees no hard edge ever wanders into view. */
+  inset: -30%;
+  z-index: -3;
   pointer-events: none;
   background-image: var(--haze-a), var(--haze-b);
   background-repeat: no-repeat;
@@ -68,7 +103,7 @@ html::before {
 }
 
 @keyframes haze-drift {
-  to { background-position: 30% 62%, 58% 24%; }
+  to { transform: translate3d(6%, 9%, 0) scale(1.12); }
 }
 
 body {
@@ -108,11 +143,15 @@ body {
 /* ---- CRT glass: scanlines + vignette -----------------------------
    The front pane of the monitor, over everything including modals.
 
-   Three things in one fixed sheet: 1px scanlines every 3px, a slow
-   bright band sweeping down the screen like a refresh pass, and a
+   Two things in one fixed sheet: 1px scanlines every 3px, and a
    vignette darkening the corners. The vignette is what makes the
    whole page look like a curved screen rather than a flat document,
    and it is the cheapest depth in the entire design.
+
+   This layer never moves. It is the topmost thing on the page, so a
+   repaint here is the most expensive repaint available — which is
+   exactly why the sweep that used to share it was moved out onto its
+   own transform-animated layer below.
 
    Kept subtle on purpose — this sits on top of body text, so any
    heavier and it stops being atmosphere and starts being noise. */
@@ -124,15 +163,6 @@ body::before {
   pointer-events: none;
 
   background-image:
-    /* the refresh sweep — a wide, very faint bright band */
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.035) 45%,
-      rgba(255, 255, 255, 0.06) 50%,
-      rgba(255, 255, 255, 0.035) 55%,
-      transparent 100%
-    ),
     /* the scanlines */
     repeating-linear-gradient(
       0deg,
@@ -144,15 +174,44 @@ body::before {
     /* the vignette */
     var(--vignette);
 
-  background-size: 100% 45vh, 100% 100%, 100% 100%;
-  background-repeat: no-repeat, repeat, no-repeat;
-  background-position: 0 -45vh, 0 0, 0 0;
+  background-size: 100% 100%, 100% 100%;
+  background-repeat: repeat, no-repeat;
+}
+
+/* ---- The refresh sweep -------------------------------------------
+   A wide, very faint bright band travelling down the screen, the way
+   an old monitor's refresh pass does.
+
+   It gets a layer to itself for one reason only: so it can be moved
+   with a transform. It is 45vh tall and sits above the interface, so
+   as part of body::before it was repainting the entire viewport, and
+   every frosted panel underneath it, on every frame. As its own
+   translated layer it costs nothing. */
+body::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 45vh;
+  z-index: 9998;
+  pointer-events: none;
+
+  background-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.035) 45%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.035) 55%,
+    transparent 100%
+  );
 
   animation: crt-sweep var(--t-sweep) linear infinite;
 }
 
 @keyframes crt-sweep {
-  to { background-position: 0 100vh, 0 0, 0 0; }
+  from { transform: translate3d(0, -45vh, 0); }
+  to   { transform: translate3d(0, 100vh, 0); }
 }
 
 /* ---- Typography -------------------------------------------------- */
@@ -252,14 +311,14 @@ img { max-width: 100%; display: block; }
   side and he stands in it. The overlap only begins once those natural margins
   are narrower than the strip he needs, which is at:
 
-      1200px of shell  +  136px of strip on each side  =  1472px
+      1200px of shell  +  170px of strip on each side  =  1540px
 
   So below that width the shell is pushed right by the difference. Above it,
   nothing happens, because nothing needs to. Below 720px he hides entirely
   (see components.css) and the padding goes with him, because a phone has no
   room to give away.
 */
-@media (min-width: 721px) and (max-width: 1471px) {
+@media (min-width: 721px) and (max-width: 1539px) {
   .shell {
     padding-left: calc(var(--sp-4) + var(--ronin-strip));
   }
@@ -303,11 +362,15 @@ img { max-width: 100%; display: block; }
     scroll-behavior: auto !important;
   }
 
-  /* Stopping the animation would leave the rain frozen on screen as a
-     grid of static lines, which is worse than not having it: it is
-     visual noise that no longer explains itself. So it is removed
-     outright, and the haze is flattened to a still wash. */
+  /* Zeroing an animation's duration does not remove it, it freezes it
+     on its final frame. For the sweep that would leave a permanent pale
+     band lying across the middle of the interface, which is worse than
+     not having it: visual noise that no longer explains itself. So it
+     is removed outright, and the haze is flattened to a still wash.
+
+     The canvas atmosphere needs no rule here at all — setUpRain() in
+     js/atmosphere.js checks the same preference and never builds it. */
   body::after { display: none; }
 
-  html::before { animation: none; }
+  html::before { animation: none; transform: none; }
 }
