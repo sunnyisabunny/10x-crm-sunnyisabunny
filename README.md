@@ -94,8 +94,10 @@ second dashboard:
 - Dark and light themes, remembered between visits
 - Keyboard shortcuts — press `?` on the Clients page to see them
 - Responsive layout
-- **RONIN**, a pixel-art samurai who stands on the dashboard, gives a tip when
-  clicked and draws his sword when something succeeds
+- **RONIN**, a pixel-art samurai who is an actual assistant rather than a mascot:
+  he carries a live count of things that need attention, and clicking him names
+  the single most urgent problem and the client it concerns, with a button that
+  opens exactly that client. New accounts get a short guided tour
 - Digital rain behind every page, drawn on a canvas in half-width katakana
 - An easter egg. It is a keyboard sequence every gamer knows.
 - Every animation stops for anyone whose system asks for reduced motion
@@ -123,15 +125,20 @@ profile.html    Account            assets/ronin.png     the assistant's sprites
 js/storage.js     the only file that touches localStorage
 js/ui.js          validation rules, notifications, formatting, photo resizing
 js/app.js         route protection, theme, shared navigation, the easter egg
-js/data.js        API calls, caching, filtering and sorting
+js/data.js        API calls, caching, filtering, sorting, the diagnosis engine
 js/auth.js        registration and login
 js/clients.js     the client list
 js/dashboard.js   the statistics
 js/analytics.js   the diagnostics, the funnel, JSON export and import
 js/profile.js     the account page
 js/atmosphere.js  the digital rain
-js/assistant.js   RONIN (dashboard only)
+js/assistant.js   RONIN — the badge, the advice, the tour
 ```
+
+The diagnosis engine lives in `data.js` rather than on the analytics page
+because **two** features need it: the analytics board renders it as a report,
+and RONIN speaks the most urgent line of it on every page. One copy of the
+rules means the assistant can never contradict the page.
 
 ## How to Run
 

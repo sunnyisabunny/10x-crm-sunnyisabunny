@@ -30,12 +30,15 @@ answer here disagrees with the code, the code wins, so go and look.
 > Beyond the requirements I added an analytics board. The dashboard tells you
 > what your numbers are; the analytics page reads the same data and tells you
 > what is wrong with it — deals that have gone quiet, revenue concentrated in
-> one client, and a forecast based on your real win rate.
+> one client, and a forecast based on your real win rate. And a pixel-art
+> assistant carries the most urgent of those findings to you on every page,
+> naming the client and taking you to them in one click.
 >
 > The part I am most pleased with is that all the shared logic lives in exactly
 > one place. Only one file touches localStorage, only one function decides where
-> clients come from, and the four deal stages are declared once — so adding a
-> fifth stage is a single line.
+> clients come from, the four deal stages are declared once — so adding a fifth
+> stage is a single line — and the assistant calls the same diagnosis function
+> the analytics page renders, so the two can never disagree.
 
 Practise this until it takes about 55 seconds. Do not memorise it word for word;
 memorise the four beats — **problem, stack, design choice, engineering pride.**
@@ -265,6 +268,16 @@ The `0` is the starting value, so an empty list gives `0` rather than an error.
 
 ## 6. Auth — and the honest security answer
 
+> **There is now a whole document on this: [`SECURITY.md`](../SECURITY.md).** It
+> covers all eight decisions, and each one is marked in the code as
+> `SECURITY DECISION 1`…`8`. Read it the night before. The short version is
+> below; the long version is what to give if they push.
+>
+> **The line to open with:** *"Two of these are honest limitations forced by
+> having no backend, and I can explain exactly why working around them in the
+> browser would be theatre. The other six are real defences that would still be
+> real with a server behind them."*
+
 ### How the guard works
 
 `js/app.js` is loaded **in `<head>` and not deferred**, on purpose. If the guard
@@ -364,17 +377,41 @@ See bug 4 below. This is the best bug story in the project.
 
 ### RONIN — `js/assistant.js`
 
-One 512×512 PNG holding every frame of every animation. Drawing one frame means
-copying a rectangle out of it, which is exactly what the nine-argument form of
-`drawImage` does:
+One PNG holding all 41 frames across 10 animations, one row per animation.
+Drawing a frame means copying a rectangle out of it, which is exactly what the
+nine-argument form of `drawImage` does:
 
 ```js
 drawImage(sheet, sx, sy, sw, sh, dx, dy, dw, dh)
 //                \_ source _/  \_ destination _/
 ```
 
-One image request covers every frame, and switching animation just switches
-which list of rectangles the loop walks.
+Because the sheet is a **uniform grid**, finding a frame is arithmetic:
+
+```js
+sx = column * RONIN_FRAME_W
+sy = animation.row * RONIN_FRAME_H
+```
+
+That is not how the sheet arrived — it was repacked into that shape on purpose,
+because the alternative is a lookup table of 41 hand-measured rectangles that
+nobody can check by eye.
+
+**The question they are most likely to ask: what does he actually do?**
+Three things, and the answer worth giving is that he is not decoration:
+
+1. **A badge** with a live count of findings that are WARN or FAIL.
+2. **The advice.** Click him and he names the most urgent problem *and the
+   client it is about* — "Worst: Emily Johnson, 23 days quiet, $12,400 on the
+   table" — with a button that opens that client via `clients.html?client=12`.
+3. **A tour** on first login, one step per page.
+
+**Where the facts come from, and why that matters.** He calls `buildFindings()`
+in `data.js` — the *same* function the analytics board renders. That is
+deliberate: two features reading the same client list must not each carry their
+own idea of what "neglected" means, or they would drift and the assistant would
+eventually contradict the page in front of the user. It is also the
+requirement-driven answer, since P5.6 forbids duplicated logic.
 
 **How he reacts to the app without being wired into it.** `ui.js` dispatches a
 `CustomEvent` called `crm:toast` every time a notification appears; RONIN
@@ -382,6 +419,10 @@ listens for it. `clients.js` and `profile.js` know nothing about him, he knows
 nothing about them, and deleting his file would leave the rest of the app
 working. That is the point of a custom event: one part of a page announces
 something without needing to know who is listening.
+
+**Where the tour flag is stored** — on the user's own record inside `crm_users`,
+*not* a fifth localStorage key. The assignment names four keys and this app uses
+four. It also makes it per-account, which is the correct behaviour anyway.
 
 ### Photos — `readImageAsAvatar()` in `js/ui.js`
 
@@ -566,8 +607,13 @@ Rehearse in this order. It hits every requirement without doubling back.
    so both have visibly changed.
 9. **Theme toggle**, then **hard reload** to prove it persisted.
 10. **Log out**, log back in — everything still there.
-11. If there is time: click **RONIN** on the dashboard, then the Konami code.
-    `↑↑↓↓←→←→BA`
+11. **Click RONIN.** Do this deliberately, not as an afterthought — it is the
+    clearest evidence of the "creativity / extra effort" criterion. Point out
+    that he read your actual data, that the client he names is real, and that
+    the button opens that exact client. Then say the sentence that explains the
+    architecture: *"he calls the same function the analytics page renders, so
+    he cannot tell you something the page disagrees with."*
+12. If there is time: the Konami code. `↑↑↓↓←→←→BA`
 
 Have DevTools open on **Application → Local Storage** at some point and show the
 four keys. It is direct evidence for a requirement they have to tick.
