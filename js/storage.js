@@ -220,10 +220,18 @@ function seedDemoAccount() {
 }
 
 /*
-  SECURITY NOTE — read this before the exam.
+  ======================================================================
+  SECURITY DECISION 1 — passwords are stored in readable text
+  Explained in full in SECURITY.md, section 1.
+  ======================================================================
 
-  This project stores passwords as plain text in localStorage. In a real
-  product that is completely unacceptable, for three reasons:
+  Everything in this app follows from one rule in the assignment: there is no
+  backend. Which means all of the code AND all of the data sit on the visitor's
+  own computer. Not "could be reached by" — they ARE there, and the person at
+  that computer can read and edit both.
+
+  This project therefore stores passwords as plain text in localStorage. In a
+  real product that is completely unacceptable, for three reasons:
 
   1. localStorage is readable by any JavaScript running on the page, so a
      single cross-site-scripting bug hands over every password at once.
@@ -236,4 +244,14 @@ function seedDemoAccount() {
   It is done this way here only because the assignment forbids a backend, and
   hashing on the client would be security theatre — whatever the client can
   compute, an attacker reading the same code can compute too.
+
+  WHY HASHING HERE WOULD BE WORSE THAN NOTHING, not merely useless. If login
+  compared a hash to a hash, then the stored hash IS the credential. Anyone who
+  can edit localStorage — which is anyone, see above — could paste in a hash
+  they generated themselves and log in as any user. The app would look more
+  secure and be exactly as open.
+
+  Hashing protects a password AT REST ON A SERVER, against someone who stole
+  the database but cannot run your login code as you. Not one of those
+  conditions exists in a browser-only app.
 */

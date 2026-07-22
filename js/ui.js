@@ -293,6 +293,25 @@ const AVATAR_MAX_SOURCE_BYTES = 8 * 1024 * 1024;
  * The crop is centred and "cover" style: the shorter side is used as the
  * square, so a portrait photo keeps its middle rather than being squashed.
  */
+/*
+  ======================================================================
+  SECURITY DECISION 7 — an uploaded photo is re-encoded, never stored as-is
+  Explained in full in SECURITY.md, section 7.
+  ======================================================================
+
+  What ends up in storage is an image THIS APP produced: the file is decoded
+  into an <img>, drawn onto a canvas, and re-encoded as a JPEG.
+
+  The main reason is size — localStorage holds about 5MB and a phone photo is
+  3-5MB — but the security side effect is worth knowing. Re-encoding through a
+  canvas keeps the pixels and discards everything else, including any GPS
+  coordinates the camera wrote into the file, and including anything hidden in
+  the file that was never image data in the first place.
+
+  The file.type check below is a COURTESY, not a defence: that type is the
+  browser's guess and can be wrong. The real protection is that a file which is
+  not an image fails to decode, and the upload is rejected with a message.
+*/
 function readImageAsAvatar(file) {
   return new Promise((resolve, reject) => {
     if (!file || !String(file.type).startsWith('image/')) {

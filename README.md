@@ -156,15 +156,25 @@ an internet connection once the clients have loaded once.
 
 Passwords are stored as readable text in the browser, and the route protection
 can be bypassed with developer tools. **Both would be unacceptable in a real
-product.** They are unavoidable here because the assignment specifies no backend,
-and there is no point hashing passwords in the browser — an attacker reading the
-same JavaScript can run the same hash, so it would be theatre rather than
-security. Real systems store a slow salted hash on a server and enforce access
-there, because the client is attacker-controlled by definition. This is explained
-in more detail in the comments in `js/storage.js`.
+product**, and both are unavoidable here: the assignment specifies no backend,
+which means all of the code and all of the data sit on the visitor's own
+computer. Hashing passwords in the browser would be *theatre* — an attacker
+reading the same JavaScript can run the same hash — and would arguably be worse
+than nothing, because the stored hash would itself become the credential.
+
+But not everything here is a compromise. The defences against cross-site
+scripting, the allowlist on imported files, the credentials left out of every
+export and the coercion of URL parameters are **real** and would still be real
+with a server behind them.
+
+**[`SECURITY.md`](SECURITY.md) explains all eight decisions in plain English** —
+what each one is, why it is like that here, and what changes when there is a
+server. Each is also marked in the code it governs, as
+`SECURITY DECISION 1`…`8`, so the file and the source can be read side by side.
 
 ## Documentation
 
+- [`SECURITY.md`](SECURITY.md) — every security decision, and what a real product does instead
 - [`ai-log.md`](ai-log.md) — how AI was used, including what was rejected and why
 - [`glossary.md`](glossary.md) — 10 technical terms from this project
 - [`research-note.md`](research-note.md) — the English source used and what it changed

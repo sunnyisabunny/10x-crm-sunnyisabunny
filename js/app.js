@@ -43,9 +43,29 @@ const currentPage = document.documentElement.dataset.page || '';
  * current script, so the caller returns early to avoid doing pointless work on
  * a page that is about to be replaced.
  *
- * This is convenience, not security: anyone can edit localStorage in DevTools.
- * With no backend there is nothing to actually protect — real access control
- * has to happen on a server, which this project does not have.
+ * ======================================================================
+ * SECURITY DECISION 2 — this guard is navigation, not access control
+ * Explained in full in SECURITY.md, section 2.
+ * ======================================================================
+ *
+ * Anyone can defeat it in about five seconds, by typing this into the console
+ * on the login page:
+ *
+ *     localStorage.setItem('crm_session', JSON.stringify({ userId: 1 }));
+ *
+ * The guard's only question is "is there a session in storage?", and they have
+ * just written one. So it stops people who are not trying, and only those.
+ *
+ * It is still worth having, because it does a genuinely useful job: it keeps
+ * the app coherent. A logged-out visitor should not land on a dashboard full
+ * of blank statistics. It is a ROUTING feature, and calling it security would
+ * be the mistake — with no backend there is nothing here that can enforce
+ * anything, because real access control has to happen somewhere the visitor
+ * does not control.
+ *
+ * A real product checks on the server, on every request, for every piece of
+ * data. The rule is that anything the client says — including "I am logged
+ * in" — is a claim, not a fact.
  */
 function applyAuthGuard() {
   const hasSession = getSession() !== null;

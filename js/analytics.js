@@ -408,10 +408,22 @@ function drawRevenueChart(clients) {
 /**
  * Write the client database to a file the user keeps.
  *
+ * ======================================================================
+ * SECURITY DECISION 5 — the export deliberately omits credentials
+ * Explained in full in SECURITY.md, section 5.
+ * ======================================================================
+ *
  * WHAT IS DELIBERATELY NOT IN HERE: the account. crm_users holds the password
  * in readable text, and a backup file is exactly the kind of thing people mail
  * to themselves or leave in cloud storage. Exporting it would turn a local
- * weakness the assignment forces on us into a portable one.
+ * weakness the assignment forces on us into a portable one — and the email
+ * address is left out for the same reason, since it is the other half of a
+ * credential.
+ *
+ * The general lesson is that DATA BECOMES MORE DANGEROUS WHEN IT MOVES. A
+ * weakness confined to one browser needs someone at that computer; the same
+ * weakness in a file needs nothing at all. So the question to ask of any
+ * export is what it is FOR, and then to include only that.
  */
 function handleExport() {
   const user = getCurrentUser();
@@ -448,6 +460,11 @@ function handleExport() {
    ================================================================== */
 
 /*
+  ======================================================================
+  SECURITY DECISION 4 — the import file is untrusted input
+  Explained in full in SECURITY.md, section 4.
+  ======================================================================
+
   A data URL is only allowed as an image if it actually is one.
 
   This is the one place in the app where a completely untrusted document
@@ -455,6 +472,12 @@ function handleExport() {
   string ends up in an <img src>. Restricting it to data:image/... and https://
   means a hand-edited file cannot smuggle in a javascript: or data:text/html
   URL and have the app render it.
+
+  Note the SHAPE of this rule: it lists what is allowed and rejects everything
+  else. The opposite approach — listing what is dangerous and blocking that —
+  is a bet that you thought of every attack. An allowlist makes no such bet,
+  which is why it is the right default whenever you can enumerate the good
+  values. The same reasoning governs `status` below.
 */
 function safeImageValue(value) {
   const text = String(value || '');
