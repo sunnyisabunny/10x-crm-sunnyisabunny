@@ -63,12 +63,19 @@ function setUpSignupForm() {
        away everything typed. Without this line nothing below ever runs. */
     event.preventDefault();
 
+    /* Read through form.elements rather than off the form directly. A form
+       already owns properties like `name`, `action` and `method`, and those
+       win over the shortcut that looks a field up by its name — so a field
+       called "name" would silently return the wrong thing. Going through
+       elements has no such clash. */
+    const fields = form.elements;
+
     const values = {
-      fullName: form.fullName.value,
-      email: form.email.value,
-      company: form.company.value,
-      password: form.password.value,
-      confirmPassword: form.confirmPassword.value,
+      fullName: fields.fullName.value,
+      email: fields.email.value,
+      company: fields.company.value,
+      password: fields.password.value,
+      confirmPassword: fields.confirmPassword.value,
     };
 
     /* Wipe previous messages so corrected fields stop showing old errors. */
@@ -121,8 +128,9 @@ function setUpLoginForm() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
 
-    const email = form.email.value;
-    const password = form.password.value;
+    const fields = form.elements;
+    const email = fields.email.value;
+    const password = fields.password.value;
 
     clearFieldErrors(form);
 
@@ -156,8 +164,8 @@ function setUpLoginForm() {
       */
       document.getElementById('email').classList.add('input-error');
       setFieldError('password', 'Invalid email or password');
-      form.password.value = '';
-      form.password.focus();
+      fields.password.value = '';
+      fields.password.focus();
       return;
     }
 
