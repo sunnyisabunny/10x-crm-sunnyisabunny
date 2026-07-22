@@ -41,6 +41,23 @@
       <button class="btn btn--primary" type="button" id="open-add-client">+ Add Client</button>
     </div>
 
+    <!-- Toolbar. Search, status chips and sort all combine, and all three feed
+         the same getVisibleClients() call in js/data.js. -->
+    <div class="toolbar">
+      <div class="toolbar__row">
+        <input class="input toolbar__search" id="search" type="search"
+               placeholder="Search by name or company..." aria-label="Search clients">
+        <select class="select toolbar__sort" id="sort" aria-label="Sort clients"></select>
+      </div>
+      <div class="toolbar__row">
+        <!-- Chips are generated from CLIENT_STATUSES so they cannot drift out
+             of step with the dropdown or the badge colours. -->
+        <div class="toolbar__row" id="filter-chips" role="group" aria-label="Filter by status"></div>
+        <span class="taskbar__spacer"></span>
+        <span class="result-count" id="result-count"></span>
+      </div>
+    </div>
+
     <!-- renderClients() empties and refills this one container. Every action in
          the app finishes by calling it, so there is a single place where the
          list is drawn and no way for two code paths to draw it differently. -->
@@ -111,6 +128,48 @@
             <button class="btn btn--primary" type="submit" id="submit-add-client">Add Client</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Client detail window. Opened by clicking a card anywhere except a
+       control. Filled in by js/clients.js when it opens.
+       ============================================================ -->
+  <div class="overlay" id="detail-overlay" hidden>
+    <div class="modal modal--wide window" role="dialog" aria-modal="true"
+         aria-labelledby="detail-title">
+      <div class="window__bar">
+        <span class="window__title" id="detail-title">CLIENT_DETAIL.EXE</span>
+        <div class="window__controls">
+          <button class="window__btn window__btn--close" type="button"
+                  data-close-detail aria-label="Close">✕</button>
+        </div>
+      </div>
+
+      <div class="window__body stack">
+        <div class="row" style="align-items: flex-start">
+          <div id="detail-avatar"></div>
+          <div class="stack-2 grow">
+            <div id="detail-name" style="font-size: var(--fs-xl); font-weight: 500; line-height: 1.2"></div>
+            <div class="text-dim" id="detail-company" style="font-size: var(--fs-sm)"></div>
+            <div class="text-dim" id="detail-email" style="font-size: var(--fs-sm)"></div>
+            <div class="text-dim" id="detail-phone" style="font-size: var(--fs-sm)"></div>
+            <div class="row" id="detail-figures"></div>
+            <div class="mono text-faint" id="detail-since" style="font-size: var(--fs-xs)"></div>
+          </div>
+        </div>
+
+        <div class="hud-label">Notes</div>
+        <div class="note-list" id="note-list"></div>
+
+        <form class="toolbar__row" id="note-form">
+          <input class="input grow" id="note-text" type="text"
+                 placeholder="Write a note..." aria-label="Note text">
+          <button class="btn btn--sm" type="submit">Add note</button>
+        </form>
+
+        <button class="btn btn--ghost" type="button" id="remind-btn">⏰ Remind me in 1 min</button>
       </div>
     </div>
   </div>

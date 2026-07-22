@@ -12,10 +12,24 @@
    from drifting apart. */
 let clients = [];
 
+/*
+  What the toolbar is currently asking for. These three are the only thing that
+  decides which clients appear — the `clients` array itself is never filtered
+  down, so clearing a control always restores the full list.
+*/
+const view = { status: 'All', search: '', sort: 'newest' };
+
+/* How long the follow-up reminder waits, per the assignment. */
+const REMINDER_DELAY_MS = 60000;
+
 /* Cached element references, looked up once instead of on every redraw. */
 const listEl = document.getElementById('client-list');
 const overlayEl = document.getElementById('add-client-overlay');
 const addFormEl = document.getElementById('add-client-form');
+const detailEl = document.getElementById('detail-overlay');
+
+/* Which client the detail window is showing, so Add Note knows its target. */
+let openClientId = null;
 
 /* ==================================================================
    Drawing the list
@@ -84,6 +98,21 @@ function createClientCard(client) {
 
   figures.append(value, createStatusBadge(client.status));
 
+  /* Status dropdown, so a deal can be moved along without opening anything.
+     Options come from CLIENT_STATUSES, so a new stage appears here for free. */
+  const statusSelect = document.createElement('select');
+  statusSelect.className = 'select';
+  statusSelect.style.minWidth = '150px';
+  statusSelect.dataset.action = 'status';
+  statusSelect.setAttribute('aria-label', `Deal stage for ${client.name}`);
+  CLIENT_STATUSES.forEach((status) => {
+    const option = document.createElement('option');
+    option.value = status;
+    option.textContent = status;
+    if (status === client.status) option.selected = true;
+    statusSelect.append(option);
+  });
+
   const deleteButton = document.createElement('button');
   deleteButton.className = 'btn btn--danger btn--sm';
   deleteButton.type = 'button';
@@ -93,7 +122,7 @@ function createClientCard(client) {
      which one is which. */
   deleteButton.setAttribute('aria-label', `Delete ${client.name}`);
 
-  actions.append(figures, deleteButton);
+  actions.append(figures, statusSelect, deleteButton);
   card.append(avatar, body, actions);
 
   return card;
@@ -131,6 +160,21 @@ function renderClients(list) {
   const fragment = document.createDocumentFragment();
   list.forEach((client) => fragment.append(createClientCard(client)));
   listEl.append(fragment);
+}
+
+/**
+ * Redraw the list through the current toolbar settings.
+ *
+ * Everything that changes data calls this rather than renderClients directly,
+ * so an edit made while a filter is active respects that filter instead of
+ * silently showing the whole list again.
+ */
+function refresh() {
+  const visible = getVisibleClients(clients, view);
+  renderClients(visible);
+
+  const count = document.getElementById('result-count');
+  if (count) count.textContent = `${visible.length} of ${clients.length}`;
 }
 
 /** A centred message block, used for the loading, empty and error states. */
@@ -171,7 +215,7 @@ async function initClients() {
 
   try {
     clients = await loadClients();
-    renderClients(clients);
+    refresh();
   } catch (error) {
     console.error('Could not load clients.', error);
 
@@ -325,7 +369,7 @@ async function handleAddClient(event) {
     /* unshift, not push: newest client appears at the top of the list. */
     clients.unshift(newClient);
     saveClients(clients);
-    renderClients(clients);
+    refresh();
 
     closeAddClientModal();
     showToast('Client added ✓', 'success');
@@ -364,9 +408,226 @@ async function handleDeleteClient(id) {
 
   clients = clients.filter((item) => item.id !== id);
   saveClients(clients);
-  renderClients(clients);
+  refresh();
 
   showToast('Client deleted', 'success');
+}
+
+/* ==================================================================
+   Changing a deal stage
+   ================================================================== */
+
+/**
+ * Move a client to a different stage.
+ *
+ * The three-step cycle the whole app runs on: change the state, save it,
+ * redraw. Going through refresh() rather than renderClients matters here —
+ * if the user is filtering by "Lead" and moves someone to "Won", that client
+ * should disappear from the list, which only happens if the filter is
+ * reapplied.
+ */
+function handleStatusChange(id, newStatus) {
+  const client = clients.find((item) => item.id === id);
+  if (!client) return;
+
+  client.status = newStatus;
+  saveClients(clients);
+  refresh();
+
+  showToast(`${client.name} moved to ${newStatus}`, 'success');
+}
+
+/* ==================================================================
+   Toolbar: search, filter chips, sort
+   ================================================================== */
+
+function populateSortOptions() {
+  const select = document.getElementById('sort');
+  /* SORT_OPTIONS lives in data.js next to the sorting code itself, so the
+     labels and the behaviour cannot drift apart. */
+  Object.entries(SORT_OPTIONS).forEach(([value, label]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.append(option);
+  });
+}
+
+/** Build "All" plus one chip per status, straight from CLIENT_STATUSES. */
+function populateFilterChips() {
+  const container = document.getElementById('filter-chips');
+
+  ['All', ...CLIENT_STATUSES].forEach((status) => {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.type = 'button';
+    chip.dataset.status = status;
+    chip.textContent = status;
+    /* aria-pressed carries the state for assistive technology, and the CSS
+       styles the active chip from that same attribute — one source of truth
+       rather than a class and an ARIA attribute that can disagree. */
+    chip.setAttribute('aria-pressed', String(status === view.status));
+    container.append(chip);
+  });
+}
+
+function setUpToolbarEvents() {
+  /* Search runs on every keystroke. No debounce is needed because nothing
+     leaves the browser — this filters an array already in memory. */
+  document.getElementById('search').addEventListener('input', (event) => {
+    view.search = event.target.value;
+    refresh();
+  });
+
+  document.getElementById('sort').addEventListener('change', (event) => {
+    view.sort = event.target.value;
+    refresh();
+  });
+
+  document.getElementById('filter-chips').addEventListener('click', (event) => {
+    const chip = event.target.closest('.chip');
+    if (!chip) return;
+
+    view.status = chip.dataset.status;
+
+    /* Exactly one chip is pressed at a time. */
+    document.querySelectorAll('#filter-chips .chip').forEach((other) => {
+      other.setAttribute('aria-pressed', String(other === chip));
+    });
+
+    refresh();
+  });
+}
+
+/* ==================================================================
+   Client detail window: full information, notes, reminder
+   ================================================================== */
+
+function openDetail(id) {
+  const client = clients.find((item) => item.id === id);
+  if (!client) return;
+
+  openClientId = id;
+
+  /* Avatar: the API image if there is one, initials if not. */
+  const avatarSlot = document.getElementById('detail-avatar');
+  avatarSlot.replaceChildren();
+  if (client.image) {
+    const img = document.createElement('img');
+    img.className = 'avatar avatar--lg';
+    img.src = client.image;
+    img.alt = '';
+    avatarSlot.append(img);
+  } else {
+    const initials = document.createElement('div');
+    initials.className = 'avatar avatar--initials avatar--lg';
+    initials.textContent = getInitials(client.name);
+    avatarSlot.append(initials);
+  }
+
+  /* textContent throughout — this window shows the same untrusted names and
+     companies the cards do. */
+  document.getElementById('detail-name').textContent = client.name;
+  document.getElementById('detail-company').textContent = client.company || '—';
+  document.getElementById('detail-email').textContent = client.email;
+  document.getElementById('detail-phone').textContent = client.phone || '—';
+  document.getElementById('detail-since').textContent =
+    `Client since ${formatDate(client.createdAt)}`;
+
+  const figures = document.getElementById('detail-figures');
+  const value = document.createElement('span');
+  value.className = 'client-card__value';
+  value.textContent = formatMoney(client.dealValue);
+  figures.replaceChildren(createStatusBadge(client.status), value);
+
+  renderNotes(client);
+  detailEl.hidden = false;
+}
+
+function closeDetail() {
+  detailEl.hidden = true;
+  openClientId = null;
+  document.getElementById('note-form').reset();
+}
+
+/** Draw the note history, oldest first so it reads as a timeline. */
+function renderNotes(client) {
+  const list = document.getElementById('note-list');
+  list.replaceChildren();
+
+  if (client.notes.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'text-faint';
+    empty.style.fontSize = 'var(--fs-sm)';
+    empty.textContent = 'No notes yet.';
+    list.append(empty);
+    return;
+  }
+
+  client.notes.forEach((note) => {
+    const item = document.createElement('div');
+    item.className = 'note';
+
+    const text = document.createElement('span');
+    text.className = 'note__text';
+    text.textContent = note.text;
+
+    const date = document.createElement('span');
+    date.className = 'note__date';
+    date.textContent = note.date;
+
+    item.append(text, date);
+    list.append(item);
+  });
+
+  /* Keep the newest note in view without moving the whole page. */
+  list.scrollTop = list.scrollHeight;
+}
+
+function handleAddNote(event) {
+  event.preventDefault();
+
+  const input = document.getElementById('note-text');
+  const text = input.value.trim();
+
+  /* An empty or whitespace-only note is silently ignored rather than shown as
+     an error — the user has not made a mistake, they just have nothing to add. */
+  if (text === '') return;
+
+  const client = clients.find((item) => item.id === openClientId);
+  if (!client) return;
+
+  client.notes.push({
+    text,
+    /* toLocaleString gives date and time in the reader's own format. */
+    date: new Date().toLocaleString(),
+  });
+
+  saveClients(clients);
+  renderNotes(client);
+  input.value = '';
+  input.focus();
+}
+
+/**
+ * Follow-up reminder.
+ *
+ * setTimeout schedules the message and returns immediately, so the timer keeps
+ * running even after the window is closed or another client is opened. The
+ * client's name is captured now, in this function's scope, rather than read
+ * from openClientId a minute later — by then the user will almost certainly be
+ * looking at something else and the reminder would name the wrong person.
+ */
+function handleRemind() {
+  const client = clients.find((item) => item.id === openClientId);
+  if (!client) return;
+
+  const name = client.name;
+  showToast('Reminder set ✓', 'success');
+
+  setTimeout(() => {
+    showToast(`⏰ Follow up: ${name}`, 'info');
+  }, REMINDER_DELAY_MS);
 }
 
 /* ==================================================================
@@ -384,18 +645,37 @@ async function handleDeleteClient(id) {
  */
 function setUpListEvents() {
   listEl.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-action]');
-    if (!button) return;
-
-    const card = button.closest('.client-card');
+    const card = event.target.closest('.client-card');
     if (!card) return;
 
     /* dataset values are always strings; ids are numbers. */
     const id = Number(card.dataset.id);
+    const control = event.target.closest('[data-action]');
 
-    if (button.dataset.action === 'delete') {
+    if (control?.dataset.action === 'delete') {
       handleDeleteClient(id);
+      return;
     }
+
+    /* Clicking a control must not also open the details window, so anything
+       inside a [data-action] element stops here. Everything else on the card
+       counts as "show me this client". */
+    if (control) return;
+
+    openDetail(id);
+  });
+
+  /* change, not click: a <select> fires change when its value is committed.
+     It is a separate listener because change does not bubble the same way for
+     every control, and mixing the two would make this harder to follow. */
+  listEl.addEventListener('change', (event) => {
+    const select = event.target.closest('[data-action="status"]');
+    if (!select) return;
+
+    const card = select.closest('.client-card');
+    if (!card) return;
+
+    handleStatusChange(Number(card.dataset.id), select.value);
   });
 }
 
@@ -414,13 +694,36 @@ function setUpModalEvents() {
     if (event.target === overlayEl) closeAddClientModal();
   });
 
-  /* Escape closes it too, which is what every desktop dialog does. */
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !overlayEl.hidden) closeAddClientModal();
-  });
-
   addFormEl.addEventListener('submit', handleAddClient);
   enableLiveErrorClearing(addFormEl);
+}
+
+function setUpDetailEvents() {
+  document.querySelectorAll('[data-close-detail]').forEach((button) => {
+    button.addEventListener('click', closeDetail);
+  });
+
+  detailEl.addEventListener('click', (event) => {
+    if (event.target === detailEl) closeDetail();
+  });
+
+  document.getElementById('note-form').addEventListener('submit', handleAddNote);
+  document.getElementById('remind-btn').addEventListener('click', handleRemind);
+}
+
+/**
+ * Escape closes whichever window is open.
+ *
+ * One listener on the document rather than one per window, so the two can
+ * never both react to the same key press.
+ */
+function setUpEscapeKey() {
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+
+    if (!detailEl.hidden) closeDetail();
+    else if (!overlayEl.hidden) closeAddClientModal();
+  });
 }
 
 /*
@@ -434,7 +737,12 @@ function setUpModalEvents() {
 */
 if (!isRedirecting) {
   populateStatusOptions();
+  populateSortOptions();
+  populateFilterChips();
   setUpListEvents();
   setUpModalEvents();
+  setUpDetailEvents();
+  setUpToolbarEvents();
+  setUpEscapeKey();
   initClients();
 }
