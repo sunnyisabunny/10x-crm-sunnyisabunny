@@ -423,7 +423,18 @@ function setUpModalEvents() {
   enableLiveErrorClearing(addFormEl);
 }
 
-populateStatusOptions();
-setUpListEvents();
-setUpModalEvents();
-initClients();
+/*
+  Do nothing at all if the auth guard is already redirecting.
+
+  window.location.href starts a navigation but does not halt the page, so
+  without this check an unauthenticated visitor would still trigger the API
+  request, have thirty clients written into their storage, and see the list
+  painted for an instant before the browser finally moved them to the login
+  page. isRedirecting is set by js/app.js in the <head>.
+*/
+if (!isRedirecting) {
+  populateStatusOptions();
+  setUpListEvents();
+  setUpModalEvents();
+  initClients();
+}

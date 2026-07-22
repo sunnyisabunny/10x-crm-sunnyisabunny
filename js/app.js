@@ -145,7 +145,24 @@ seedDemoAccount();
 /* Theme first so the correct colours are in place for the very first paint. */
 applyTheme(getTheme());
 
-/* If the guard is sending us elsewhere, skip the rest — this page is leaving. */
+/*
+  Run the guard and publish its verdict.
+
+  isRedirecting is deliberately a shared flag that every page script must check
+  before it does any work. Setting window.location.href only *starts* a
+  navigation — it does not stop the current page. The browser carries on
+  parsing, so without this flag dashboard.js and clients.js would still run:
+  clients.js would fetch thirty clients from the API, write them to storage,
+  and render them into the DOM of a page the visitor is not allowed to see,
+  moments before the redirect finally lands.
+
+  So the contract for every page script is:
+
+      if (isRedirecting) { ... do nothing ... }
+
+  A top-level const is visible to the other scripts because classic scripts all
+  share one global lexical scope.
+*/
 const isRedirecting = applyAuthGuard();
 
 if (!isRedirecting) {
