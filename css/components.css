@@ -1494,8 +1494,7 @@ body.crt-mode h3 {
    because a gradient can be irregular and a border cannot. */
 [data-theme="light"] .recent-row,
 [data-theme="light"] .finding__row,
-[data-theme="light"] .shortcut-row,
-[data-theme="light"] .note {
+[data-theme="light"] .shortcut-row {
   border-bottom-color: transparent;
   background-image: linear-gradient(
     90deg,
@@ -1523,11 +1522,8 @@ body.crt-mode h3 {
    kept to a single motif on purpose: the research on modern grunge is
    blunt that one repeated mark reads as a system and three read as a
    mess. It is also pointer-events: none and sits under the content,
-   so it can never interfere with anything. */
-[data-theme="light"] .window {
-  position: relative;
-}
-
+   so it can never interfere with anything. .window is already
+   position: relative, so this has something to anchor to. */
 [data-theme="light"] .window::after {
   content: "";
   position: absolute;

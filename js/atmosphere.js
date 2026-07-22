@@ -673,11 +673,16 @@ function drawHaunt(dt) {
     } else {
       const presence = hauntPresence(p);
 
-      /* The sheet is rebuilt only while the contact highlight is changing,
-         which is the last quarter of the press. For the rest of the life the
-         same image is reused frame after frame. */
-      if (!haunt.sheet || presence > 0.75) {
+      /* Rebuilding the sheet allocates a canvas and fills the path again, so
+         it is done as rarely as the picture allows: once when the figure
+         arrives, and then only while the contact highlight is actually
+         changing — and even then only when it has changed by enough to see.
+         Quantising to twentieths turns roughly fifty rebuilds per apparition
+         into about five, with no visible difference. */
+      const step = Math.round(presence * 20);
+      if (!haunt.sheet || (presence > 0.75 && step !== haunt.sheetStep)) {
         haunt.sheet = renderApparitionSheet(presence) || haunt.sheet;
+        haunt.sheetStep = step;
       }
       if (haunt.sheet) drawApparition(presence);
     }
