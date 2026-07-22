@@ -1,0 +1,73 @@
+<!doctype html>
+<!-- Login is index.html because it is the first thing an unauthenticated
+     visitor should see. A visitor who already has a session is sent straight
+     to the dashboard by the guard in js/app.js. -->
+<html lang="en" data-page="login" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log In — 10X CRM</title>
+  <meta name="description" content="10X CRM — a customer relationship manager for sales teams.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</head>
+
+<body>
+  <main class="auth">
+    <div class="auth__card">
+      <span class="auth__brand">10X CRM</span>
+
+      <div class="window">
+        <div class="window__bar">
+          <span class="window__title">LOGIN.EXE</span>
+          <div class="window__controls">
+            <span class="window__btn" aria-hidden="true">_</span>
+            <span class="window__btn" aria-hidden="true">&#9633;</span>
+            <span class="window__btn" aria-hidden="true">&#10005;</span>
+          </div>
+        </div>
+
+        <div class="window__body">
+          <h1 class="auth__heading">Welcome back</h1>
+
+          <form id="login-form" class="stack" novalidate>
+            <div class="field">
+              <label class="field__label" for="email">Email</label>
+              <input class="input" id="email" name="email" type="text" autocomplete="email">
+              <p class="field__error" data-error-for="email"></p>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="password">Password</label>
+              <input class="input" id="password" name="password" type="password"
+                     autocomplete="current-password">
+              <p class="field__error" data-error-for="password"></p>
+            </div>
+
+            <button class="btn btn--primary btn--block" type="submit">Log In</button>
+          </form>
+
+          <p class="auth__footer">
+            Don't have an account? <a href="signup.html">Sign up</a>
+          </p>
+        </div>
+      </div>
+
+      <p class="auth__boot">crm.session &mdash; awaiting credentials</p>
+    </div>
+  </main>
+
+  <script src="js/ui.js"></script>
+  <script src="js/auth.js"></script>
+</body>
+</html>

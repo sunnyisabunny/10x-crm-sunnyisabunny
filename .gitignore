@@ -19,6 +19,3 @@ desktop.ini
 *.log
 npm-debug.log*
 pnpm-debug.log*
-
-# Local design-system staging (previews live in Claude Design, not in the repo)
-design-system/
