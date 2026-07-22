@@ -237,6 +237,129 @@ function getFirstName(fullName) {
   return String(fullName).trim().split(' ')[0];
 }
 
+/* ==================================================================
+   Avatar uploads
+   ================================================================== */
+
+/*
+  THE PROBLEM THIS SOLVES
+
+  localStorage holds about 5MB, and it holds TEXT. An image has to be stored
+  as a base64 data URL, which is roughly a third larger than the original
+  file. A single photo straight off a phone is 3-5MB, so storing one unchanged
+  would consume the entire budget and every write after it would fail — not
+  just the picture, but saving a client or changing your password.
+
+  So nothing is ever stored at the size it arrived. Every upload is drawn onto
+  a canvas at 128x128 and re-encoded as JPEG first. Avatars display at 48px on
+  a card and 72px on the profile page, so 128 is already sharper than needed
+  even on a high-density screen, and the result is about 6KB of base64.
+
+  Thirty-one images at that size is roughly 190KB — under 4% of the budget.
+  The ceiling stops being something to manage and becomes something you cannot
+  reach by normal use.
+*/
+const AVATAR_STORED_SIZE = 128;
+const AVATAR_JPEG_QUALITY = 0.72;
+
+/* A sanity limit on what is even worth decoding. This is about the ORIGINAL
+   file: anything past this is almost certainly not a portrait, and decoding a
+   60-megapixel image to throw away all but 128x128 of it wastes memory. */
+const AVATAR_MAX_SOURCE_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Turn a chosen file into a small square JPEG data URL.
+ *
+ * Returns a promise because two separate asynchronous steps are involved and
+ * neither can be skipped: FileReader has to finish reading the bytes, and then
+ * the browser has to finish decoding those bytes into an image before its
+ * width and height are known. Both report completion through events, so the
+ * promise is what lets the caller simply await the finished result.
+ *
+ * The crop is centred and "cover" style: the shorter side is used as the
+ * square, so a portrait photo keeps its middle rather than being squashed.
+ */
+function readImageAsAvatar(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !String(file.type).startsWith('image/')) {
+      reject(new Error('That file is not an image'));
+      return;
+    }
+
+    if (file.size > AVATAR_MAX_SOURCE_BYTES) {
+      reject(new Error('That image is too large. Please pick one under 8MB'));
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error('Could not read that file'));
+
+    reader.onload = () => {
+      const image = new Image();
+
+      /* A file can claim to be an image in its type and still not decode —
+         a renamed text file, or a truncated download. */
+      image.onerror = () => reject(new Error('That image could not be opened'));
+
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = AVATAR_STORED_SIZE;
+        canvas.height = AVATAR_STORED_SIZE;
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('Image processing is unavailable in this browser'));
+          return;
+        }
+
+        /* Centre-crop to a square before scaling down. */
+        const side = Math.min(image.width, image.height);
+        const sourceX = (image.width - side) / 2;
+        const sourceY = (image.height - side) / 2;
+
+        context.drawImage(
+          image,
+          sourceX, sourceY, side, side,
+          0, 0, AVATAR_STORED_SIZE, AVATAR_STORED_SIZE
+        );
+
+        /* JPEG rather than PNG: a photograph as PNG is several times larger
+           for no visible gain at this size. Transparency is not needed,
+           because the result is always a filled square. */
+        resolve(canvas.toDataURL('image/jpeg', AVATAR_JPEG_QUALITY));
+      };
+
+      image.src = reader.result;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Build an avatar element: the image if there is one, initials if not.
+ *
+ * Every place in the app that shows an avatar goes through here, so the
+ * fallback rule and the alt text are decided once. Previously the clients page
+ * and the profile page each built their own and could have disagreed.
+ */
+function createAvatar(imageSrc, nameForInitials, extraClass = '') {
+  if (imageSrc) {
+    const img = document.createElement('img');
+    img.className = `avatar ${extraClass}`.trim();
+    img.src = imageSrc;
+    img.alt = '';            // decorative: the name is always beside it
+    img.loading = 'lazy';
+    return img;
+  }
+
+  const initials = document.createElement('div');
+  initials.className = `avatar avatar--initials ${extraClass}`.trim();
+  initials.textContent = getInitials(nameForInitials);
+  return initials;
+}
+
 /**
  * Make a string safe to put inside an HTML template.
  *

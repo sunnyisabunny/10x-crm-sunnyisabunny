@@ -61,19 +61,12 @@ function createClientCard(client) {
      would let the DOM hold a stale copy after an edit. */
   card.dataset.id = client.id;
 
-  /* --- Avatar: the API image, or generated initials as a fallback --- */
-  let avatar;
-  if (client.image) {
-    avatar = document.createElement('img');
-    avatar.className = 'avatar';
-    avatar.src = client.image;
-    avatar.alt = '';           // decorative: the name is right next to it
-    avatar.loading = 'lazy';
-  } else {
-    avatar = document.createElement('div');
-    avatar.className = 'avatar avatar--initials';
-    avatar.textContent = getInitials(client.name);
-  }
+  /* --- Avatar ---
+     An uploaded photo wins over the one the API supplied, and initials are
+     the fallback when there is neither. createAvatar() in ui.js owns that
+     rule so the card, the detail window and the profile page cannot end up
+     disagreeing about it. */
+  const avatar = createAvatar(client.avatar || client.image, client.name);
 
   /* --- Name, company, email --- */
   const body = document.createElement('div');
@@ -597,21 +590,14 @@ function openDetail(id) {
 
   openClientId = id;
 
-  /* Avatar: the API image if there is one, initials if not. */
-  const avatarSlot = document.getElementById('detail-avatar');
-  avatarSlot.replaceChildren();
-  if (client.image) {
-    const img = document.createElement('img');
-    img.className = 'avatar avatar--lg';
-    img.src = client.image;
-    img.alt = '';
-    avatarSlot.append(img);
-  } else {
-    const initials = document.createElement('div');
-    initials.className = 'avatar avatar--initials avatar--lg';
-    initials.textContent = getInitials(client.name);
-    avatarSlot.append(initials);
-  }
+  /* Uploaded photo, else the API image, else initials. */
+  document.getElementById('detail-avatar')
+    .replaceChildren(createAvatar(client.avatar || client.image, client.name, 'avatar--lg'));
+
+  /* Remove is only offered for a photo this user actually uploaded. The
+     API's own image is not theirs to delete. */
+  document.getElementById('client-avatar-remove').hidden = !client.avatar;
+  document.querySelector('[data-error-for="client-avatar-input"]').textContent = '';
 
   /* textContent throughout — this window shows the same untrusted names and
      companies the cards do. */
@@ -802,6 +788,67 @@ function setUpDetailEvents() {
 
   document.getElementById('note-form').addEventListener('submit', handleAddNote);
   document.getElementById('remind-btn').addEventListener('click', handleRemind);
+
+  document.getElementById('client-avatar-input')
+    .addEventListener('change', handleClientAvatarChange);
+  document.getElementById('client-avatar-remove')
+    .addEventListener('click', handleClientAvatarRemove);
+}
+
+/**
+ * Attach an uploaded photo to the open client.
+ *
+ * Stored on the client record itself, inside the existing crm_clients key —
+ * no new storage key, so the four the assignment specifies stay exactly four.
+ *
+ * The image is cropped and re-encoded to 128x128 by readImageAsAvatar() before
+ * it is ever written, which is what makes storing one per client affordable:
+ * about 6KB each, so thirty of them is well under a tenth of the budget.
+ */
+async function handleClientAvatarChange(event) {
+  const input = event.target;
+  const file = input.files[0];
+  const errorSlot = document.querySelector('[data-error-for="client-avatar-input"]');
+
+  errorSlot.textContent = '';
+  if (!file || openClientId === null) return;
+
+  try {
+    const dataUrl = await readImageAsAvatar(file);
+    const client = clients.find((item) => item.id === openClientId);
+    if (!client) return;
+
+    client.avatar = dataUrl;
+
+    /* saveClients() reports a failed write rather than throwing. The realistic
+       cause is a full quota, and a photo that silently fails to save is far
+       more confusing than one that says so. */
+    if (!saveClients(clients)) {
+      client.avatar = '';
+      errorSlot.textContent = 'Not enough browser storage left to save that photo';
+      return;
+    }
+
+    openDetail(openClientId);   // redraw the window with the new photo
+    refresh();                  // and the card behind it
+    showToast('Photo updated ✓', 'success');
+  } catch (error) {
+    errorSlot.textContent = error.message;
+  } finally {
+    /* Reset so picking the same file twice still fires a change event. */
+    input.value = '';
+  }
+}
+
+function handleClientAvatarRemove() {
+  const client = clients.find((item) => item.id === openClientId);
+  if (!client) return;
+
+  client.avatar = '';
+  saveClients(clients);
+  openDetail(openClientId);
+  refresh();
+  showToast('Photo removed', 'info');
 }
 
 /**

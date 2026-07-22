@@ -35,13 +35,34 @@
     </div>
 
     <div class="profile-grid">
-      <!-- Identity block (P5.1). The avatar is the user's initials rather than
-           an uploaded image — no file upload is in scope. -->
+      <!-- Identity block (P5.1). The avatar is an uploaded photo if there is
+           one and the user's initials if not, so it always renders. -->
       <div class="window">
         <div class="window__bar"><span class="window__title">USER.DAT</span></div>
         <div class="window__body">
           <div class="profile-id">
-            <div class="avatar avatar--initials avatar--lg" id="id-avatar"></div>
+            <!-- Filled by renderIdentity(): either an <img> or an initials
+                 block, built by createAvatar() in js/ui.js so this page and
+                 the clients page cannot disagree about the fallback. -->
+            <div id="id-avatar"></div>
+
+            <!-- The real file input is visually hidden rather than removed:
+                 it stays in the accessibility tree and keeps working with the
+                 keyboard, while the <label> beside it provides the styled
+                 control. Clicking a label focuses and activates its input,
+                 which is why no JavaScript is needed to open the picker. -->
+            <div class="row" style="justify-content: center">
+              <input class="sr-only" type="file" id="avatar-input"
+                     accept="image/*" aria-describedby="avatar-hint">
+              <label class="btn btn--sm" for="avatar-input">Upload Photo</label>
+              <button class="btn btn--sm btn--ghost" type="button"
+                      id="avatar-remove" hidden>Remove</button>
+            </div>
+            <p class="field__error" data-error-for="avatar-input"></p>
+            <p class="text-faint" id="avatar-hint" style="font-size: var(--fs-xs)">
+              Resized to 128&times;128 before saving.
+            </p>
+
             <div class="profile-id__name" id="id-name"></div>
             <div class="profile-id__meta" id="id-email"></div>
             <div class="profile-id__meta" id="id-company"></div>

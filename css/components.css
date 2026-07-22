@@ -218,6 +218,20 @@
 
 .btn--ghost:active { transform: translate(1px, 1px); }
 
+/* A <label> carrying .btn is the file-upload trigger. It gets every button
+   style for free, but not the cursor, because base.css sets that on <button>
+   only and a label is not one. */
+label.btn { cursor: pointer; }
+
+/* The hidden file input is still focusable, so its focus ring has to land on
+   something visible — otherwise a keyboard user tabs onto an invisible control
+   with no feedback at all. :focus-within puts the ring on the label instead. */
+.sr-only:focus-visible + label.btn {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: var(--bloom-md) var(--accent);
+}
+
 .btn--block { width: 100%; }
 
 .btn--sm {

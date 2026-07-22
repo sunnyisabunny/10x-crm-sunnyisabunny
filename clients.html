@@ -149,7 +149,18 @@
 
       <div class="window__body stack">
         <div class="row" style="align-items: flex-start">
-          <div id="detail-avatar"></div>
+          <!-- Avatar plus its upload control. The file input is visually
+               hidden but still in the accessibility tree and still keyboard
+               operable; the <label> beside it is the styled trigger, because
+               clicking a label activates its input with no JavaScript. -->
+          <div class="stack-2" style="justify-items: center">
+            <div id="detail-avatar"></div>
+            <input class="sr-only" type="file" id="client-avatar-input" accept="image/*">
+            <label class="btn btn--sm btn--ghost" for="client-avatar-input">Photo</label>
+            <button class="btn btn--sm btn--ghost" type="button"
+                    id="client-avatar-remove" hidden>Remove</button>
+            <p class="field__error" data-error-for="client-avatar-input"></p>
+          </div>
           <div class="stack-2 grow">
             <div id="detail-name" style="font-size: var(--fs-xl); font-weight: 500; line-height: 1.2"></div>
             <div class="text-dim" id="detail-company" style="font-size: var(--fs-sm)"></div>
