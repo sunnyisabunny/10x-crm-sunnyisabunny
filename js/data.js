@@ -119,6 +119,30 @@ async function createClientOnApi(client) {
 }
 
 /**
+ * PUT an edited client.
+ *
+ * PUT replaces a record that already exists, where POST creates a new one.
+ * Using the right verb matters even against a simulated API: the method is
+ * how a server is told what kind of change this is, and a client that sends
+ * POST for an edit would create duplicates against a real backend.
+ *
+ * As with the others, DummyJSON validates and echoes but stores nothing.
+ */
+async function updateClientOnApi(id, changes) {
+  const response = await fetch(`${API_BASE}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(changes),
+  });
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
  * DELETE a client.
  *
  * Returns true when the server accepted it, false when it did not.
