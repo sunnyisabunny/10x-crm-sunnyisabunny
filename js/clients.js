@@ -159,16 +159,50 @@ function createStatusBadge(status) {
  * times.
  */
 function renderClients(list) {
-  listEl.replaceChildren();          // clear whatever was there
-
   if (list.length === 0) {
-    listEl.append(createStateBlock('No clients found.'));
+    listEl.replaceChildren(createStateBlock('No clients found.'));
     return;
   }
 
   const fragment = document.createDocumentFragment();
   list.forEach((client) => fragment.append(createClientCard(client)));
-  listEl.append(fragment);
+
+  /* One call, not "empty it, then fill it". The two-step version left the list
+     with no children in between, so the page briefly had nothing in it. */
+  listEl.replaceChildren(fragment);
+}
+
+/**
+ * Replace exactly one card, leaving the rest of the list untouched.
+ *
+ * Rebuilding all thirty cards to show one changed badge is what made the page
+ * jump to the top: every card the browser was holding the scroll position
+ * against was destroyed and replaced with a new node, and the <select> the
+ * user had just used went with them, so focus fell back to the top of the
+ * document. Swapping the single card that actually changed leaves every other
+ * node exactly where it was, and there is nothing for the scroll position to
+ * be measured against that has moved.
+ *
+ * Only safe when the list's membership and order have not changed — the caller
+ * checks that.
+ */
+function replaceCard(client) {
+  /* Number() rather than the raw value: this is built into a selector, and a
+     client id is always a number. */
+  const old = listEl.querySelector(`.client-card[data-id="${Number(client.id)}"]`);
+  if (!old) { refresh(); return; }
+
+  const hadFocus = old.contains(document.activeElement);
+  const fresh = createClientCard(client);
+  old.replaceWith(fresh);
+
+  /* The dropdown the user was using was destroyed along with the old card, so
+     put focus on its replacement. preventScroll because the card has not
+     moved — the browser scrolling to "reveal" it is the exact jump this
+     function exists to stop. */
+  if (hadFocus) {
+    fresh.querySelector('[data-action="status"]')?.focus({ preventScroll: true });
+  }
 }
 
 /**
@@ -506,10 +540,19 @@ async function handleDeleteClient(id) {
  * Move a client to a different stage.
  *
  * The three-step cycle the whole app runs on: change the state, save it,
- * redraw. Going through refresh() rather than renderClients matters here —
- * if the user is filtering by "Lead" and moves someone to "Won", that client
- * should disappear from the list, which only happens if the filter is
- * reapplied.
+ * redraw. What gets redrawn depends on whether the client is still on screen
+ * afterwards:
+ *
+ *   still visible -> swap that one card, so the page does not move
+ *   filtered out  -> full refresh, because the list really has changed
+ *
+ * The second case is the one that matters for correctness: if the user is
+ * filtering by "Lead" and moves someone to "Won", that client has to disappear
+ * from the list, which only happens if the filter is reapplied. The first case
+ * is the one that matters for the person using it. Note that none of the three
+ * sort orders — newest, name, value — depends on status, so a status change
+ * can never reorder the list; it can only add or remove someone from it. That
+ * is what makes the one-card swap safe.
  */
 function handleStatusChange(id, newStatus) {
   const client = clients.find((item) => item.id === id);
@@ -524,7 +567,10 @@ function handleStatusChange(id, newStatus) {
   client.closedAt = isClosedStatus(newStatus) ? new Date().toISOString() : '';
 
   saveClients(clients);
-  refresh();
+
+  const stillVisible = getVisibleClients(clients, view).some((item) => item.id === id);
+  if (stillVisible) replaceCard(client);
+  else refresh();
 
   showToast(`${client.name} moved to ${newStatus}`, 'success');
 }
