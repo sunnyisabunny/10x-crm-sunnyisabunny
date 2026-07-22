@@ -19,33 +19,40 @@
  * alpha rather than adding colour — so old glyphs fade towards transparent
  * instead of towards black, and everything behind the canvas stays visible.
  *
- * Loaded on all five pages, after app.js.
+ * Loaded on all six pages, after app.js.
  */
 
-/* Column width and glyph size in CSS pixels. */
-const RAIN_FONT_SIZE = 16;
+/* Column width and glyph size in CSS pixels. Raised from 16: at 16 the glyphs
+   were legible in principle and unreadable in practice, because half-width
+   katakana at that size behind a translucent interface is mostly noise. */
+const RAIN_FONT_SIZE = 20;
 
 /* How much alpha is removed from the whole canvas each frame. Higher means
-   shorter tails. Lowered along with the speed below: a slower column covers
-   less ground before its trail fades, so keeping the old fade rate would have
-   left short stubs instead of long streaks. */
-const RAIN_FADE = 0.032;
+   shorter tails. Now that a glyph is painted once and then left alone (see
+   drawRain), this number alone decides how long a trail survives: at 0.012 a
+   character keeps roughly a tenth of its brightness after 200 frames, which
+   is about three seconds of tail. */
+const RAIN_FADE = 0.012;
 
-/* Rows advanced per frame. At roughly 60 frames a second and a 16px row, the
-   range below works out at about 100-300 pixels a second — a drift rather
-   than a downpour. The spread between the two is what matters most: columns
-   moving at visibly different speeds is what stops the field reading as one
-   solid block sliding down the screen. */
-const RAIN_MIN_SPEED = 0.10;
-const RAIN_MAX_SPEED = 0.30;
+/* Rows advanced per frame. At roughly 60 frames a second and a 20px row this
+   is about 60-190 pixels a second, or one new character every quarter second
+   in the slowest columns. The spread between the two matters more than either
+   number: columns moving at visibly different speeds is what stops the field
+   reading as one solid block sliding down the screen. */
+const RAIN_MIN_SPEED = 0.05;
+const RAIN_MAX_SPEED = 0.16;
 
-/* Chance per frame that a column that has run off the bottom restarts. Low, so
-   columns come back staggered rather than all at once. */
-const RAIN_RESPAWN_CHANCE = 0.02;
+/* Chance per row-step that a column which has run off the bottom restarts.
+   Checked per step rather than per frame, so it does not need to be tiny. */
+const RAIN_RESPAWN_CHANCE = 0.08;
 
 /* How faint the whole layer is. The interface has to stay readable on top of
    it, and this is the single number that decides whether it does. */
-const RAIN_OPACITY = 0.28;
+const RAIN_OPACITY = 0.32;
+
+/* The leading character of a column, drawn near-white so it reads as the
+   bright head of the streak rather than one more glyph in the trail. */
+const RAIN_HEAD_COLOR = '#E8FFF0';
 
 /*
   Half-width katakana, digits and a few latin characters — the alphabet the
@@ -91,16 +98,29 @@ function sizeRain() {
   rainCtx.textBaseline = 'top';
 
   const count = Math.ceil(window.innerWidth / RAIN_FONT_SIZE);
+  const rows = Math.ceil(window.innerHeight / RAIN_FONT_SIZE);
   rainColumns = [];
 
   for (let i = 0; i < count; i += 1) {
-    rainColumns.push({
-      /* Start scattered above the fold so the field is already falling when
-         the page appears, rather than every column starting from the top. */
-      y: Math.random() * -60,
-      speed: RAIN_MIN_SPEED + Math.random() * (RAIN_MAX_SPEED - RAIN_MIN_SPEED),
-    });
+    rainColumns.push(newRainColumn(Math.random() * (rows + 10) - 10));
   }
+}
+
+/**
+ * One falling column.
+ *
+ * `y` is measured in rows, not pixels, because the whole point of the redraw
+ * below is that a glyph is only ever painted on a whole row. `row` remembers
+ * which row was last painted and `glyph` remembers what was painted there, so
+ * the head can be repainted in the trail colour when it moves on.
+ */
+function newRainColumn(startRow) {
+  return {
+    y: startRow,
+    row: Math.floor(startRow),
+    glyph: '',
+    speed: RAIN_MIN_SPEED + Math.random() * (RAIN_MAX_SPEED - RAIN_MIN_SPEED),
+  };
 }
 
 /** The colour the rain is currently falling in, read live from the theme. */
@@ -111,47 +131,71 @@ function rainColor() {
 /**
  * Draw one frame.
  *
- * Three passes, and the order matters:
+ * WHY A GLYPH IS ONLY EVER PAINTED ONCE
+ * The first version of this drew a fresh random character at the head of every
+ * column on every frame. A column moves less than a fifth of a row per frame,
+ * so the head stays on the same row for five to twenty frames — and each of
+ * those frames stamped a DIFFERENT random character on the same spot. What
+ * ended up on screen was five characters overlapping in the same 20 pixels,
+ * which is why the rain looked like flickering static however far it was
+ * slowed down. Slowing it further made it worse, not better: a slower column
+ * spends longer on each row, so it piles up more characters per position.
+ *
+ * The fix is to move drawing off the frame clock and onto the row. A column
+ * only paints when it crosses into a new row, which means every character is
+ * stamped exactly once, in one place, and then simply fades. The two are now
+ * independent: speed changes how often a new character appears, and RAIN_FADE
+ * changes how long it lingers.
+ *
+ * Each step does three things, in this order:
  *   1. subtract alpha everywhere, ageing every glyph already on the canvas
- *   2. draw each column's newest glyph in a bright, near-white head colour
- *   3. draw it again in the phosphor colour just behind the head, so the
- *      trail is green while the leading character reads as white-hot
+ *   2. repaint the previous head in the trail colour, demoting it
+ *   3. paint the new head in near-white
  */
 function drawRain() {
-  const height = window.innerHeight;
+  const rows = Math.ceil(window.innerHeight / RAIN_FONT_SIZE);
   const color = rainColor();
 
   /* 1. Age everything by removing alpha rather than painting over it. */
   rainCtx.globalCompositeOperation = 'destination-out';
   rainCtx.fillStyle = `rgba(0, 0, 0, ${RAIN_FADE})`;
-  rainCtx.fillRect(0, 0, window.innerWidth, height);
+  rainCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
   /* Back to normal painting for the glyphs. */
   rainCtx.globalCompositeOperation = 'source-over';
 
   for (let i = 0; i < rainColumns.length; i += 1) {
     const column = rainColumns[i];
+    column.y += column.speed;
+
+    const row = Math.floor(column.y);
+    if (row === column.row) continue;   // still on the same row; nothing to draw
+
     const x = i * RAIN_FONT_SIZE;
-    const y = column.y * RAIN_FONT_SIZE;
 
-    if (y > 0 && y < height) {
-      /* 2. The head: brighter and desaturated, so it reads as the leading
-            edge rather than as one more character in the trail. */
-      rainCtx.fillStyle = '#DFFFE8';
-      rainCtx.fillText(rainGlyph(), x, y);
-
-      /* 3. The character just above it, in full phosphor. */
+    /* 2. The character that was the head is now one place behind it, so it is
+          repainted in phosphor. Same glyph, same spot, so the green covers the
+          white exactly — which is why the glyph had to be remembered. */
+    if (column.glyph && column.row >= 0 && column.row < rows) {
       rainCtx.fillStyle = color;
-      rainCtx.fillText(rainGlyph(), x, y - RAIN_FONT_SIZE);
+      rainCtx.fillText(column.glyph, x, column.row * RAIN_FONT_SIZE);
     }
 
-    column.y += column.speed;
+    column.row = row;
+    column.glyph = rainGlyph();
+
+    /* 3. The new head. Rows above the top and below the bottom are skipped:
+          the column keeps counting either way, so a column runs off the
+          bottom and falls quietly until it is restarted. */
+    if (row >= 0 && row < rows) {
+      rainCtx.fillStyle = RAIN_HEAD_COLOR;
+      rainCtx.fillText(column.glyph, x, row * RAIN_FONT_SIZE);
+    }
 
     /* Once a column is off the bottom it waits a random while before falling
        again, which keeps the field irregular instead of pulsing in unison. */
-    if (y > height && Math.random() < RAIN_RESPAWN_CHANCE) {
-      column.y = Math.random() * -20;
-      column.speed = RAIN_MIN_SPEED + Math.random() * (RAIN_MAX_SPEED - RAIN_MIN_SPEED);
+    if (row > rows && Math.random() < RAIN_RESPAWN_CHANCE) {
+      rainColumns[i] = newRainColumn(Math.random() * -20);
     }
   }
 }
