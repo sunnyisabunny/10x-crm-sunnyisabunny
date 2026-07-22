@@ -318,13 +318,17 @@ const HAUNT_OPACITY = 0.72;
 /*
   THE APPARITION ATLAS.
 
-  Built from assets/ghosts.png by scratchpad/extract-ghosts.mjs: eight
-  sculpted faces, eight skeletal hands, eight bloody handprints, cut out of
-  their concrete and packed into a uniform grid. Faces and hands were re-inked
-  into a dark tonal range on the way through, because they are pale grey in
-  the source and this theme's fog is pale too — drawn as they came they would
-  have been invisible. Something approaching through fog reads as a darkening
-  silhouette in any case.
+  Packed by scratchpad/extract-ghosts.mjs from the founder's source sheet:
+  eight sculpted faces, eight skeletal hands, eight bloody handprints, cut out
+  of their concrete into a uniform grid. Faces and hands were re-inked into a
+  dark tonal range on the way through, because they are pale grey in the source
+  and this theme's fog is pale too — drawn as they came they would have been
+  invisible. Something approaching through fog reads as a darkening silhouette
+  in any case.
+
+  The source sheet is kept out of the shipped repo to keep assets/ to only what
+  the app loads; it lives in git history (commit "replace the drawn silhouettes
+  with the real ghost textures") if the art ever needs re-deriving.
 
   Indices are contiguous by kind, so picking "a random hand" is arithmetic
   rather than a lookup table.

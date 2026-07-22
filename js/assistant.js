@@ -90,13 +90,14 @@ const RONIN_DRAW_H = 79;
    theme is not a recoloured dark theme, so its assistant is not a
    recoloured samurai either.
 
-   His sheet is packed from assets/survivor.png by
-   scratchpad/pack-survivor.mjs into the same kind of uniform grid, but
-   it is three frames by four rows rather than six by ten, and his cell
-   is PORTRAIT where RONIN's is landscape. That is why the drawn size
-   and the canvas dimensions travel with the skin rather than being
-   constants: dropping a 144x196 sprite into a canvas shaped for a
-   158x120 one squashes him flat.
+   His sheet is packed by scratchpad/pack-survivor.mjs from the founder's
+   source into the same kind of uniform grid, but it is three frames by
+   four rows rather than six by ten, and his cell is PORTRAIT where
+   RONIN's is landscape. That is why the drawn size and the canvas
+   dimensions travel with the skin rather than being constants: dropping
+   a 144x196 sprite into a canvas shaped for a 158x120 one squashes him
+   flat. (The source sheet is kept out of assets/ — only the packed grid
+   the app loads lives there — but is in git history if ever needed.)
    ------------------------------------------------------------------ */
 const SURVIVOR_FRAME_W = 144;
 const SURVIVOR_FRAME_H = 196;
