@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" data-page="clients" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clients — 10X CRM</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</head>
+
+<body>
+  <!-- The navigation markup is repeated on the three protected pages. Only the
+       markup is repeated: which link is highlighted, what the theme button
+       says, and what Logout does all come from js/app.js, so behaviour is
+       defined once. Without a templating language there is no way to share
+       static HTML across separate files, and generating the bar from
+       JavaScript would mean the page has no navigation until a script runs. -->
+  <nav class="taskbar">
+    <a class="taskbar__logo" href="dashboard.html">10X CRM</a>
+    <a class="nav-link" href="dashboard.html" data-nav="dashboard">Dashboard</a>
+    <a class="nav-link" href="clients.html" data-nav="clients">Clients</a>
+    <a class="nav-link" href="profile.html" data-nav="profile">Profile</a>
+    <span class="taskbar__spacer"></span>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch theme">☀</button>
+    <button class="icon-btn" type="button" data-logout>Logout</button>
+  </nav>
+
+  <main class="shell">
+    <div class="page-head">
+      <h1 class="page-title">Clients</h1>
+      <button class="btn btn--primary" type="button" id="open-add-client">+ Add Client</button>
+    </div>
+
+    <!-- renderClients() empties and refills this one container. Every action in
+         the app finishes by calling it, so there is a single place where the
+         list is drawn and no way for two code paths to draw it differently. -->
+    <div class="client-list" id="client-list"></div>
+  </main>
+
+  <!-- ============================================================
+       Add Client window. Lives in the HTML rather than being built in
+       JavaScript so the form fields, their labels and their error slots are
+       readable in one place. `hidden` keeps it out of the page (and out of the
+       tab order) until it is opened.
+       ============================================================ -->
+  <div class="overlay" id="add-client-overlay" hidden>
+    <div class="modal window" role="dialog" aria-modal="true" aria-labelledby="add-client-title">
+      <div class="window__bar">
+        <span class="window__title" id="add-client-title">ADD_CLIENT.EXE</span>
+        <div class="window__controls">
+          <button class="window__btn window__btn--close" type="button"
+                  data-close-modal aria-label="Close">✕</button>
+        </div>
+      </div>
+
+      <div class="window__body">
+        <form id="add-client-form" class="stack" novalidate>
+          <div class="field">
+            <label class="field__label" for="client-name">Name</label>
+            <input class="input" id="client-name" name="name" type="text">
+            <p class="field__error" data-error-for="client-name"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="client-email">Email</label>
+            <input class="input" id="client-email" name="email" type="text">
+            <p class="field__error" data-error-for="client-email"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="client-phone">Phone</label>
+            <input class="input" id="client-phone" name="phone" type="text"
+                   placeholder="Optional">
+            <p class="field__error" data-error-for="client-phone"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="client-company">Company</label>
+            <input class="input" id="client-company" name="company" type="text"
+                   placeholder="Optional">
+            <p class="field__error" data-error-for="client-company"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="client-value">Deal Value</label>
+            <input class="input" id="client-value" name="dealValue" type="text"
+                   inputmode="numeric" placeholder="5000">
+            <p class="field__error" data-error-for="client-value"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="client-status">Status</label>
+            <!-- Options are generated from CLIENT_STATUSES in js/data.js, so
+                 this dropdown can never fall out of step with the filter chips
+                 or the badge colours. -->
+            <select class="select" id="client-status" name="status"></select>
+          </div>
+
+          <div class="row" style="justify-content: flex-end">
+            <button class="btn btn--ghost" type="button" data-close-modal>Cancel</button>
+            <button class="btn btn--primary" type="submit" id="submit-add-client">Add Client</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/ui.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/clients.js"></script>
+</body>
+</html>
