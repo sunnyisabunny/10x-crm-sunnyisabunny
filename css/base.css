@@ -86,58 +86,23 @@ body {
 }
 
 /* ---- Digital rain -------------------------------------------------
-   The Matrix layer, and the one piece of this that needed a trick.
+   Drawn by js/atmosphere.js onto a canvas, not by CSS.
 
-   The image is a set of thin vertical columns, which on its own is a
-   static grid. The falling comes from the MASK: a tall repeating band
-   of opacity scrolling downwards, so each column is only revealed
-   where the band currently is. Moving the mask rather than the image
-   means the columns never shift sideways — they just switch on and
-   off down their own length, which is exactly how the effect reads.
+   This started as pure CSS — scrolling vertical gradients — and it was
+   wrong. It moved, but it had no characters in it, so it read as
+   stripes rather than as falling code. Real rain needs individual
+   glyphs that change as they fall, and CSS cannot draw text it was
+   never given. The canvas can.
 
-   If a browser does not support mask-image the columns simply sit
-   still, which degrades to a faint vertical texture rather than to
-   anything broken. */
-body::after {
-  content: "";
+   All this rule does is place and size the element; everything you
+   actually see is painted in JavaScript. The opacity is set inline by
+   the script from a single named constant, so there is one place to
+   turn the whole effect up or down. */
+.rain {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: var(--rain-alpha);
-
-  background-image: repeating-linear-gradient(
-    90deg,
-    transparent 0 34px,
-    var(--rain-color) 34px 35px,
-    transparent 35px 70px
-  );
-
-  -webkit-mask-image: repeating-linear-gradient(
-    180deg,
-    transparent 0,
-    #000 22%,
-    #000 34%,
-    transparent 62%
-  );
-  mask-image: repeating-linear-gradient(
-    180deg,
-    transparent 0,
-    #000 22%,
-    #000 34%,
-    transparent 62%
-  );
-  -webkit-mask-size: 100% 340px;
-  mask-size: 100% 340px;
-
-  animation: rain-fall var(--t-rain) linear infinite;
-}
-
-@keyframes rain-fall {
-  to {
-    -webkit-mask-position: 0 340px;
-    mask-position: 0 340px;
-  }
 }
 
 /* ---- CRT glass: scanlines + vignette -----------------------------
