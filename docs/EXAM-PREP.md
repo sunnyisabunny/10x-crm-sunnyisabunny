@@ -19,13 +19,18 @@ answer here disagrees with the code, the code wins, so go and look.
 > and a dashboard that summarises the state of the business.
 >
 > It is built in vanilla JavaScript — no frameworks, no libraries, and no build
-> step. There are five pages. Accounts and clients are stored in localStorage,
+> step. There are six pages. Accounts and clients are stored in localStorage,
 > and the client list is loaded once from the DummyJSON REST API using GET,
 > POST, PUT and DELETE.
 >
 > The interface is a Windows 2000 pastiche rendered in neon, which I chose
 > because the retro window metaphor does real structural work: a modal genuinely
 > is a window with a title bar, and the navigation genuinely is a taskbar.
+>
+> Beyond the requirements I added an analytics board. The dashboard tells you
+> what your numbers are; the analytics page reads the same data and tells you
+> what is wrong with it — deals that have gone quiet, revenue concentrated in
+> one client, and a forecast based on your real win rate.
 >
 > The part I am most pleased with is that all the shared logic lives in exactly
 > one place. Only one file touches localStorage, only one function decides where
@@ -68,12 +73,15 @@ per concern.
 |---|---|
 | `js/storage.js` | **The only file that touches `localStorage`** |
 | `js/ui.js` | Validation rules, toasts, field errors, formatting |
-| `js/app.js` | Auth guard, theme, shared navigation — runs on all five pages |
+| `js/app.js` | Auth guard, theme, shared navigation, Konami — all six pages |
 | `js/data.js` | API calls, cache-or-API loading, filter/search/sort |
 | `js/auth.js` | Signup and login |
 | `js/clients.js` | The client list |
 | `js/dashboard.js` | The statistics |
+| `js/analytics.js` | The diagnostics, the funnel, JSON export and import |
 | `js/profile.js` | The account page |
+| `js/atmosphere.js` | The digital rain |
+| `js/assistant.js` | RONIN — loaded by `dashboard.html` only |
 
 If asked *"why is `storage.js` the only file that touches localStorage?"* — so
 that the four key names exist in exactly one place. If a second file wrote
@@ -325,7 +333,93 @@ No component knows themes exist — they just use `var(--surface)`.
 
 ---
 
-## 8. The live-change segment
+## 8. The extras — the code most likely to be asked about
+
+These are the parts that are not in the assignment, so they are the parts an
+examiner is most likely to point at and ask "why does this work?".
+
+### The digital rain — `js/atmosphere.js`
+
+A `<canvas>` behind every page. One column per glyph-width across the window,
+each with its own position and speed.
+
+**The question to be ready for: how do the old characters fade?**
+The obvious way is to paint a low-alpha black rectangle over the whole canvas
+each frame, so everything underneath darkens. That would work — and it would
+also make the canvas **opaque**, hiding the coloured haze and the blueprint grid
+that are drawn behind it. Instead:
+
+```js
+ctx.globalCompositeOperation = 'destination-out';
+ctx.fillStyle = 'rgba(0, 0, 0, 0.012)';
+ctx.fillRect(0, 0, width, height);
+```
+
+`destination-out` **subtracts alpha** instead of adding colour, so old glyphs
+fade towards *transparent* rather than towards black, and everything behind the
+canvas stays visible.
+
+**The second question: why is drawing tied to the row and not the frame?**
+See bug 4 below. This is the best bug story in the project.
+
+### RONIN — `js/assistant.js`
+
+One 512×512 PNG holding every frame of every animation. Drawing one frame means
+copying a rectangle out of it, which is exactly what the nine-argument form of
+`drawImage` does:
+
+```js
+drawImage(sheet, sx, sy, sw, sh, dx, dy, dw, dh)
+//                \_ source _/  \_ destination _/
+```
+
+One image request covers every frame, and switching animation just switches
+which list of rectangles the loop walks.
+
+**How he reacts to the app without being wired into it.** `ui.js` dispatches a
+`CustomEvent` called `crm:toast` every time a notification appears; RONIN
+listens for it. `clients.js` and `profile.js` know nothing about him, he knows
+nothing about them, and deleting his file would leave the rest of the app
+working. That is the point of a custom event: one part of a page announces
+something without needing to know who is listening.
+
+### Photos — `readImageAsAvatar()` in `js/ui.js`
+
+`localStorage` holds about 5 MB. A phone photo is 3-4 MB, so storing two would
+fill it. The upload therefore never stores the file: a `FileReader` reads it,
+an `Image` decodes it, a canvas centre-crops and redraws it at **128×128**, and
+`toDataURL('image/jpeg', 0.72)` produces roughly 6 KB. Thirty-one photos come to
+about 190 KB — under 4% of the budget, so the limit is not managed, it is made
+unreachable. No new storage key: photos live inside `crm_users` and
+`crm_clients`.
+
+### The analytics maths — `js/analytics.js`
+
+Every number is derived, none is stored:
+
+| Figure | How |
+|---|---|
+| Win rate | won ÷ (won + lost), and only once at least 4 deals have closed |
+| Cycle length | average days from `createdAt` to `closedAt` on closed deals |
+| Forecast | open pipeline × win rate |
+| Neglected | open, and no note in 14 days |
+| Stalled | open longer than twice the average cycle |
+| Concentration | one client is >35% of won revenue, with at least 4 wins |
+
+The last threshold has a story: with only 3 wins, an *even* split is already 33%
+each, so the rule fired on perfectly healthy data. A test caught it. The minimum
+of 4 wins is the fix — below that the figure is arithmetic, not a finding.
+
+**JSON export/import.** Export is `JSON.stringify` into a `Blob`, then a
+temporary `<a download>` that is clicked and removed. It deliberately omits
+password and email. Import parses the file and **sanitises every image field**
+before anything is rendered — a `data:` URL that is not an image, or a
+`javascript:` URL, is replaced with an empty string, because an imported file is
+untrusted input exactly like anything typed into a form.
+
+---
+
+## 9. The live-change segment
 
 You will be asked to make a small change with no AI. The likeliest asks, and the
 one-line answer to each:
@@ -340,6 +434,13 @@ one-line answer to each:
 | How many "recent" show | `RECENT_CLIENT_COUNT` in `js/dashboard.js:14` |
 | Toast duration | `TOAST_DURATION_MS` in `js/ui.js:23` |
 | Default theme | `DEFAULT_THEME` in `js/storage.js:21` |
+| Rain speed | `RAIN_MIN_SPEED` / `RAIN_MAX_SPEED` in `js/atmosphere.js` |
+| Rain tail length | `RAIN_FADE` in `js/atmosphere.js` — lower means longer |
+| Rain visibility | `RAIN_OPACITY` in `js/atmosphere.js` |
+| "Gone quiet" threshold | `NEGLECT_DAYS` in `js/analytics.js:30` |
+| Concentration warning | `CONCENTRATION_WARN` in `js/analytics.js:39` |
+| Stored photo size | `AVATAR_STORED_SIZE` in `js/ui.js:276` |
+| Which page RONIN stands on | `RONIN_PAGE` in `js/assistant.js` |
 
 The filter chips, the status dropdown on each card, the Add Client form and the
 dashboard pipeline **all derive from `CLIENT_STATUSES`**. Nothing hardcodes the
@@ -348,7 +449,7 @@ colour token — demonstrate that if you get the chance.
 
 ---
 
-## 9. Three real bugs — tell these stories
+## 10. Six real bugs — tell these stories
 
 Being able to describe a bug you fixed is worth more than any amount of smooth
 recitation.
@@ -374,9 +475,47 @@ const idIsFree = saved.id && !clients.some((c) => c.id === saved.id);
 payload.id = idIsFree ? saved.id : Date.now();
 ```
 
+**4. The rain that could not be read — the best story here.**
+The complaint was "it is too fast and I cannot make out the characters". If the
+answer had been to slow it down, it would have got **worse**. Drawing was tied
+to the frame: every frame, every column stamped a fresh random character at its
+head. But a column moves less than a fifth of a row per frame, so the head stays
+on the same row for five to twenty frames — and each of those frames wrote a
+*different* character into the same twenty pixels. Five characters were landing
+on top of each other. Slowing it down means longer on each row, which means
+*more* characters piled up per position.
+
+The fix moves drawing off the frame clock and onto the row: a column only paints
+when it crosses into a new row, so every character is stamped exactly once, in
+one place, and then fades. Speed and tail length became independent.
+
+**The lesson to say out loud:** the reported symptom and the actual cause were
+different, and fixing the symptom would have made it worse.
+
+**5. Changing a deal stage threw the page to the top.**
+One badge changed, and all thirty cards were destroyed and rebuilt. Nothing the
+browser was holding the scroll position against still existed, and the dropdown
+the user had just used went with them — a test proved `document.activeElement`
+ended up on `<body>`. Now only the one card that changed is swapped, which is
+safe because **no sort order depends on status**, so a status change can never
+reorder the list — only add or remove someone from the current filter. When it
+does filter them out, the full redraw still runs.
+
+**6. Sampling outside a sprite sheet is not harmless.**
+One walk frame had `sx: 414`, and 414 + 100 is 514 against a 512-pixel sheet.
+The browser does not error: it clips the source rectangle and then **stretches
+what is left** to fill the destination, so the character would have visibly
+squashed on that one frame of every cycle. Caught by a test asserting every
+source rectangle stays inside the sheet.
+
+**What bugs 4, 5 and 6 have in common:** all three were found by *looking at the
+running app*, not by reading code and not by the 511 automated assertions. jsdom
+has no layout engine and no canvas, so it cannot see a squashed sprite or a
+scroll jump. Tests check what you thought to ask.
+
 ---
 
-## 10. Rapid fire
+## 11. Rapid fire
 
 Cover the right column and answer out loud.
 
@@ -406,7 +545,7 @@ Cover the right column and answer out loud.
 
 ---
 
-## 11. Demo route — five minutes
+## 12. Demo route — five minutes
 
 Rehearse in this order. It hits every requirement without doubling back.
 
@@ -419,11 +558,16 @@ Rehearse in this order. It hits every requirement without doubling back.
 5. **Add a client** — show validation, then a real one. Open the **Network tab**
    and point at the POST.
 6. **Edit** one — point at the PUT. **Delete** one — point at the DELETE.
-7. **Profile** — rename yourself, then go back to the dashboard so the greeting
-   has visibly changed.
-8. **Theme toggle**, then **hard reload** to prove it persisted.
-9. **Log out**, log back in — everything still there.
-10. If there is time: the Konami code. `↑↑↓↓←→←→BA`
+7. **Analytics** — let the scan run, read one finding out loud, then say the
+   line that justifies the page: *"the dashboard tells me what is, this tells me
+   what to fix."* Show the funnel drop-off, then **export the JSON** and open the
+   file so they can see it contains no password.
+8. **Profile** — upload a photo, rename yourself, then go back to the dashboard
+   so both have visibly changed.
+9. **Theme toggle**, then **hard reload** to prove it persisted.
+10. **Log out**, log back in — everything still there.
+11. If there is time: click **RONIN** on the dashboard, then the Konami code.
+    `↑↑↓↓←→←→BA`
 
 Have DevTools open on **Application → Local Storage** at some point and show the
 four keys. It is direct evidence for a requirement they have to tick.
