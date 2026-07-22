@@ -97,6 +97,13 @@ function applyAuthGuard() {
  */
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
+
+  /* The one thing a class swap cannot re-point: the canvas behind the page.
+     Dark rains code, light stands in fog with things pressing through it, and
+     those are two different painters rather than two palettes. js/atmosphere.js
+     defines this; the guard means every page still works if that file is absent
+     or has not run yet, which is the case on first paint and in the tests. */
+  if (typeof syncAtmosphere === 'function') syncAtmosphere();
 }
 
 /** Switch to the other theme, save the choice, and update the button label. */
