@@ -104,6 +104,11 @@ function applyTheme(theme) {
      defines this; the guard means every page still works if that file is absent
      or has not run yet, which is the case on first paint and in the tests. */
   if (typeof syncAtmosphere === 'function') syncAtmosphere();
+
+  /* The assistant changes body with the theme too — a pixel samurai in the
+     dark, a survivor in the light. js/assistant.js defines this; same guard,
+     same reason. */
+  if (typeof syncAssistantSkin === 'function') syncAssistantSkin();
 }
 
 /** Switch to the other theme, save the choice, and update the button label. */

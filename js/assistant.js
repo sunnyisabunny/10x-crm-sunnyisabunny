@@ -83,6 +83,83 @@ const RONIN_ANIMATIONS = {
 const RONIN_DRAW_W = 104;
 const RONIN_DRAW_H = 79;
 
+/* ------------------------------------------------------------------
+   THE LIGHT THEME'S ASSISTANT
+
+   Same character, same job, same code — a different body. The light
+   theme is not a recoloured dark theme, so its assistant is not a
+   recoloured samurai either.
+
+   His sheet is packed from assets/survivor.png by
+   scratchpad/pack-survivor.mjs into the same kind of uniform grid, but
+   it is three frames by four rows rather than six by ten, and his cell
+   is PORTRAIT where RONIN's is landscape. That is why the drawn size
+   and the canvas dimensions travel with the skin rather than being
+   constants: dropping a 144x196 sprite into a canvas shaped for a
+   158x120 one squashes him flat.
+   ------------------------------------------------------------------ */
+const SURVIVOR_FRAME_W = 144;
+const SURVIVOR_FRAME_H = 196;
+const SURVIVOR_DRAW_W = 76;
+const SURVIVOR_DRAW_H = 104;
+
+/*
+  Ten states folded onto four rows.
+
+  His art covers walking, being down, a sickle swing and a blast. RONIN
+  has ten named states and every one of them is triggered somewhere, so
+  each is mapped to the row whose MEANING is closest rather than being
+  left to fall back to standing — an assistant who stops reacting is a
+  worse bug than one who reuses a pose.
+
+  `idle` is the interesting one. He has no standing frame, so it plays
+  the first two frames of the walk row slowly: at 620ms that reads as
+  shifting his weight, where the walk speed reads as marching on the
+  spot.
+*/
+const SURVIVOR_ANIMATIONS = {
+  idle:   { row: 0, frames: 2, ms: 620, loop: true },
+  jump:   { row: 3, frames: 3, ms: 150, loop: false },
+  attack: { row: 2, frames: 3, ms: 110, loop: false },
+  walk:   { row: 0, frames: 3, ms: 150, loop: true },
+  defend: { row: 1, frames: 3, ms: 190, loop: false },
+  run:    { row: 0, frames: 3, ms: 95,  loop: true },
+  ready:  { row: 3, frames: 2, ms: 520, loop: true },
+  slash:  { row: 2, frames: 3, ms: 100, loop: false },
+  death:  { row: 1, frames: 3, ms: 260, loop: false },
+  dodge:  { row: 1, frames: 3, ms: 130, loop: false },
+};
+
+/*
+  Everything that differs between the two bodies, in one place.
+
+  Adding this as a table rather than as `if (theme === 'light')` scattered
+  through the file is what keeps the promise that this is a stylistic change
+  only: the drawing code, the animation clock, the advice engine and the
+  panel all still do exactly what they did, and simply read their numbers
+  from here.
+*/
+const RONIN_SKINS = {
+  dark: {
+    src: RONIN_SHEET_SRC,
+    frameW: RONIN_FRAME_W,
+    frameH: RONIN_FRAME_H,
+    drawW: RONIN_DRAW_W,
+    drawH: RONIN_DRAW_H,
+    animations: RONIN_ANIMATIONS,
+    name: 'RONIN',
+  },
+  light: {
+    src: 'assets/survivor-frames.png',
+    frameW: SURVIVOR_FRAME_W,
+    frameH: SURVIVOR_FRAME_H,
+    drawW: SURVIVOR_DRAW_W,
+    drawH: SURVIVOR_DRAW_H,
+    animations: SURVIVOR_ANIMATIONS,
+    name: 'SURVIVOR',
+  },
+};
+
 /* ==================================================================
    2. TIMING
    ================================================================== */
@@ -157,7 +234,10 @@ const RONIN_REACTIONS = {
    4. STATE
    ================================================================== */
 
-let roninSheet = null;         // the loaded Image
+let roninSheet = null;         // the loaded Image for the ACTIVE skin
+let roninSkin = RONIN_SKINS.dark;
+/* One entry per skin, so switching theme twice does not fetch twice. */
+const roninSheets = { dark: null, light: null };
 let roninCanvas = null;
 let roninCtx = null;
 let roninRoot = null;          // the whole fixed-position widget
@@ -180,6 +260,73 @@ let roninTourStep = null;      // the tour step for this page, or null
    5. DRAWING
    ================================================================== */
 
+/** Which body the current theme calls for. */
+function currentSkinName() {
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+
+/**
+ * Fetch one skin's sheet, once, and call back when it is usable.
+ *
+ * Each skin is cached under its own key, so flipping the theme back and forth
+ * costs one request per body and no more. A skin is only ever fetched when it
+ * is actually needed — someone who never leaves the dark theme never downloads
+ * the survivor.
+ */
+function loadRoninSkin(name, done) {
+  const cached = roninSheets[name];
+  if (cached && cached.complete && cached.naturalWidth > 0) { done(true); return; }
+
+  const image = new Image();
+  roninSheets[name] = image;
+  image.onload = () => done(true);
+  image.onerror = () => done(false);
+  image.src = RONIN_SKINS[name].src;
+}
+
+/**
+ * Swap the assistant's body to match the theme.
+ *
+ * Called by applyTheme() in js/app.js, alongside syncAtmosphere(). Same
+ * shared-global convention as isRedirecting, and the caller guards with typeof
+ * so a page without this file still switches theme cleanly.
+ *
+ * The canvas is resized as well as repainted, because the two sheets are not
+ * the same shape — RONIN's cell is landscape and the survivor's is portrait.
+ */
+function syncAssistantSkin() {
+  if (!roninCanvas) return;
+
+  const name = currentSkinName();
+  const skin = RONIN_SKINS[name];
+  if (skin === roninSkin && roninSheet) return;
+
+  loadRoninSkin(name, (ok) => {
+    /* A missing sheet leaves whoever is already on screen in place. Losing the
+       assistant entirely because a theme was toggled would be a poor trade. */
+    if (!ok || !roninCanvas) return;
+
+    roninSkin = skin;
+    roninSheet = roninSheets[name];
+
+    roninCanvas.width = skin.drawW;
+    roninCanvas.height = skin.drawH;
+
+    const button = roninRoot && roninRoot.querySelector('.ronin__btn');
+    if (button) {
+      button.setAttribute(
+        'aria-label',
+        `${skin.name}, your assistant. Activate for the state of your client list.`
+      );
+    }
+
+    /* Restart the current animation rather than just redrawing: the two skins
+       have different frame counts per row, so a frame index that was valid for
+       one can point past the end of the other. */
+    playRonin(roninOpen ? 'ready' : 'idle');
+  });
+}
+
 /**
  * Paint the current frame.
  *
@@ -193,16 +340,16 @@ let roninTourStep = null;      // the tour step for this page, or null
 function drawRonin() {
   if (!roninCtx || !roninSheet) return;
 
-  const animation = RONIN_ANIMATIONS[roninAnimation];
+  const animation = roninSkin.animations[roninAnimation] || roninSkin.animations.idle;
   const column = roninFrameIndex % animation.frames;
 
   roninCtx.clearRect(0, 0, roninCanvas.width, roninCanvas.height);
 
   roninCtx.drawImage(
     roninSheet,
-    column * RONIN_FRAME_W, animation.row * RONIN_FRAME_H,   // where in the sheet
-    RONIN_FRAME_W, RONIN_FRAME_H,                            // how much of it
-    0, 0, RONIN_DRAW_W, RONIN_DRAW_H                         // where on the canvas
+    column * roninSkin.frameW, animation.row * roninSkin.frameH,  // where in the sheet
+    roninSkin.frameW, roninSkin.frameH,                           // how much of it
+    0, 0, roninSkin.drawW, roninSkin.drawH                        // where on the canvas
   );
 }
 
@@ -217,8 +364,8 @@ function drawRonin() {
 function playRonin(name) {
   clearInterval(roninFrameTimer);
 
-  const animation = RONIN_ANIMATIONS[name] || RONIN_ANIMATIONS.idle;
-  roninAnimation = RONIN_ANIMATIONS[name] ? name : 'idle';
+  const animation = roninSkin.animations[name] || roninSkin.animations.idle;
+  roninAnimation = roninSkin.animations[name] ? name : 'idle';
   roninFrameIndex = 0;
   drawRonin();
 
@@ -699,13 +846,14 @@ function buildRonin() {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'ronin__btn';
-  button.setAttribute('aria-label', 'RONIN, your assistant. Activate for the state of your client list.');
+  const skin = RONIN_SKINS[currentSkinName()];
+  button.setAttribute('aria-label', `${skin.name}, your assistant. Activate for the state of your client list.`);
   button.setAttribute('aria-expanded', 'false');
 
   roninCanvas = document.createElement('canvas');
   roninCanvas.className = 'ronin__canvas';
-  roninCanvas.width = RONIN_DRAW_W;
-  roninCanvas.height = RONIN_DRAW_H;
+  roninCanvas.width = skin.drawW;
+  roninCanvas.height = skin.drawH;
   roninCanvas.setAttribute('aria-hidden', 'true');
 
   roninCtx = roninCanvas.getContext('2d');
@@ -796,9 +944,18 @@ function setUpRonin() {
 
   if (buildRonin() === false) return;
 
-  roninSheet = new Image();
+  const name = currentSkinName();
+  roninSkin = RONIN_SKINS[name];
 
-  roninSheet.onload = () => {
+  loadRoninSkin(name, (ok) => {
+    if (!ok) {
+      console.warn('RONIN: sprite sheet could not be loaded; continuing without him.');
+      if (roninRoot) roninRoot.remove();
+      roninRoot = null;
+      return;
+    }
+
+    roninSheet = roninSheets[name];
     roninEntrance();
     refreshBadge();
 
@@ -808,15 +965,7 @@ function setUpRonin() {
         if (!roninOpen) openRonin();
       }, RONIN_TOUR_DELAY_MS);
     }
-  };
-
-  roninSheet.onerror = () => {
-    console.warn('RONIN: sprite sheet could not be loaded; continuing without him.');
-    roninRoot.remove();
-    roninRoot = null;
-  };
-
-  roninSheet.src = RONIN_SHEET_SRC;
+  });
 }
 
 /* Same contract as every other page script: stay out of the way entirely if
