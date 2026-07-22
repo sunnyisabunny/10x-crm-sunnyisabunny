@@ -1565,3 +1565,152 @@ body.crt-mode h3 {
 [data-theme="light"] .ronin__panel {
   box-shadow: var(--lift);
 }
+
+/* ============================================================
+   20. VITALS — the heartbeat readout
+
+   A small instrument well beside a client's status, showing a trace
+   that says how alive the deal is:
+
+     Lead       a single sparse blip, slow — barely monitored yet
+     Contacted  a faint but regular rhythm
+     Won        a strong healthy QRS complex
+     Lost       flatline, and it does not move
+
+   BOTH THEMES. This is the one addition in this branch that is not a
+   light-theme thing: it is built entirely out of existing tokens, so
+   dark gets a neon readout and light gets an ink one from exactly the
+   same rules.
+
+   HOW IT IS DRAWN
+   The trace is an SVG line used as a MASK, not as an image, with the
+   colour supplied underneath by `background-color: currentColor`. That
+   indirection is the whole trick — an <img> would have its colour baked
+   in and would need four files per theme, whereas a mask takes its
+   colour from whatever the element inherits. The badge classes already
+   set that colour per status, so the readout matches its badge without
+   being told the status twice.
+
+   HOW IT MOVES
+   The trace element is twice the width of its window and the mask tiles
+   at half that, so exactly two periods sit side by side. Sliding it
+   left by 50% therefore lands the second period precisely where the
+   first was, and the loop is seamless with no visible jump. The slide
+   is a `transform`, so it runs on the compositor — which matters,
+   because a list of thirty clients means thirty of these running at
+   once and anything that repainted would be thirty repaints a frame.
+   ============================================================ */
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.vitals {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: 52px;
+  height: 20px;
+  overflow: hidden;
+  vertical-align: middle;
+
+  /* A recessed instrument well, the same one the dashboard clock sits in. */
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  box-shadow: var(--bevel-in);
+}
+
+.vitals__trace {
+  position: absolute;
+  inset: 0;
+  width: 200%;
+
+  background-color: currentColor;
+
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-size: 50% 100%;
+  mask-size: 50% 100%;
+  -webkit-mask-position: 0 50%;
+  mask-position: 0 50%;
+
+  animation: vitals-scroll 2.6s linear infinite;
+}
+
+@keyframes vitals-scroll {
+  to { transform: translateX(-50%); }
+}
+
+/* ---- Lead: one small blip, and a long wait ------------------------- */
+.vitals--lead { color: var(--status-lead); }
+
+.vitals--lead .vitals__trace {
+  animation-duration: 3.4s;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L44 20 L48 15 L52 25 L56 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L44 20 L48 15 L52 25 L56 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* ---- Contacted: a faint but regular rhythm ------------------------- */
+.vitals--contacted { color: var(--status-contacted); }
+
+.vitals--contacted .vitals__trace {
+  animation-duration: 2.8s;
+  opacity: 0.75;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L20 20 L24 18 L28 20 L42 20 L46 13 L50 27 L54 20 L68 20 L72 18 L76 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L20 20 L24 18 L28 20 L42 20 L46 13 L50 27 L54 20 L68 20 L72 18 L76 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* ---- Won: a strong, healthy complex -------------------------------- */
+.vitals--won { color: var(--status-won); }
+
+.vitals--won .vitals__trace {
+  animation-duration: 2.1s;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L18 20 L22 17 L26 20 L38 20 L42 6 L46 34 L50 20 L62 20 L66 16 L70 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L18 20 L22 17 L26 20 L38 20 L42 6 L46 34 L50 20 L62 20 L66 16 L70 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* ---- Lost: flatline ------------------------------------------------
+   The animation is removed rather than slowed. A flatline that scrolls
+   is still moving, and movement is the one thing this state must not
+   have. */
+.vitals--lost { color: var(--status-lost); }
+
+.vitals--lost .vitals__trace {
+  animation: none;
+  transform: none;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M0 20 L100 20' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* ---- The panel variant: a monitor running behind a readout ---------
+   Same component, stretched across the width of an analytics panel and
+   dropped to a whisper. It is not reporting on anything — it is the
+   sound of the room the diagnostic is being run in. */
+.vitals--panel {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin-top: var(--sp-3);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--phosphor);
+  opacity: 0.3;
+}
+
+.vitals--panel .vitals__trace {
+  -webkit-mask-size: 25% 100%;
+  mask-size: 25% 100%;
+  animation-duration: 4.2s;
+}
+
+/* Reduced motion: the trace stays, the scrolling stops. The SHAPE is the
+   information — a flatline still reads as a flatline standing still, and
+   the status is spelled out in words on the badge beside it regardless. */
+@media (prefers-reduced-motion: reduce) {
+  .vitals__trace { animation: none; }
+}
