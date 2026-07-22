@@ -30,6 +30,19 @@
 
 const RONIN_SHEET_SRC = 'assets/ronin.png';
 
+/*
+  The one page he stands on.
+
+  He was on all four protected pages to begin with. He is fixed to the
+  bottom-left corner, and on Clients, Analytics and Profile that corner is
+  occupied — a client card, the findings terminal, the danger zone — so he
+  overlapped real content and, because his button accepts clicks, took clicks
+  that were meant for whatever was underneath him. Making him smaller or
+  moving him would only pick a different thing to sit on, since every one of
+  those pages fills its width. The dashboard is the page with room.
+*/
+const RONIN_PAGE = 'dashboard';
+
 /* Every frame is cut from the sheet at this size. Chosen as the largest
    bounding box across all the frames used, plus a little margin. */
 const RONIN_FRAME_W = 100;
@@ -93,34 +106,16 @@ const RONIN_ANIMATIONS = {
    What he says
    ================================================================== */
 
-const RONIN_LINES = {
-  dashboard: [
-    'Four numbers, one truth. Won revenue counts closed deals only.',
-    'The clock is live. Everything else is counted from your client list.',
-    'Pipeline looking thin? Head to Clients and move something forward.',
-    'Numbers here are today. The Analytics board tells you what is wrong.',
-  ],
-  clients: [
-    'Press / to search. Press ? for the whole list of shortcuts.',
-    'Filter, search and sort all stack. Use all three at once, partner.',
-    'Every client keeps a note history. Open one and write down what was said.',
-    'Deleted someone by mistake? That one does not come back. Aim carefully.',
-    'Thirty souls came in from the wire. The rest are yours.',
-  ],
-  analytics: [
-    'This board does not repeat the dashboard. It tells you what is broken.',
-    'A deal nobody has touched in two weeks is already half lost.',
-    'Forecast is your open pipeline cut down to what usually actually closes.',
-    'Export writes a file you keep. Your password never goes in it.',
-    'If one client is most of your revenue, that is not success. That is risk.',
-  ],
-  profile: [
-    'Change your name here and the dashboard greeting follows you.',
-    'Reset wipes the client list. Your account survives it.',
-    'A new password needs the old one first. No shortcuts through that door.',
-    'A photo gets shrunk to 128 pixels before it is saved. Storage is finite.',
-  ],
-};
+const RONIN_LINES = [
+  'Four numbers, one truth. Won revenue counts closed deals only.',
+  'The clock is live. Everything else is counted from your client list.',
+  'Pipeline looking thin? Head to Clients and move something forward.',
+  'Numbers here are today. The Analytics board tells you what is wrong.',
+  'A deal nobody has touched in two weeks is already half lost.',
+  'If one client is most of your revenue, that is not success. That is risk.',
+  'On the Clients page, press / to search and ? for every shortcut.',
+  'Thirty souls came in from the wire. The rest are yours.',
+];
 
 /* Short reactions, said when something happens rather than when clicked. */
 const RONIN_REACTIONS = {
@@ -279,14 +274,13 @@ function roninSay(text) {
   }, RONIN_TYPE_MS);
 }
 
-/** A line for the page we are on, never the same one twice running. */
+/** A tip, never the same one twice running. */
 function roninNextLine() {
-  const lines = RONIN_LINES[currentPage] || ['RONIN online.'];
-  if (lines.length === 1) return lines[0];
+  if (RONIN_LINES.length === 1) return RONIN_LINES[0];
 
   let pick = roninLastLine;
   while (pick === roninLastLine) {
-    pick = lines[Math.floor(Math.random() * lines.length)];
+    pick = RONIN_LINES[Math.floor(Math.random() * RONIN_LINES.length)];
   }
   roninLastLine = pick;
   return pick;
@@ -381,6 +375,12 @@ function buildRonin() {
  * empty box, and the app carries on without him.
  */
 function setUpRonin() {
+  /* Belt and braces with the script tags: only dashboard.html loads this file,
+     and if that ever changes by accident he still will not appear anywhere
+     else. One named constant is cheaper than finding out later why a sprite is
+     sitting on top of the client list again. */
+  if (currentPage !== RONIN_PAGE) return;
+
   const prefersReducedMotion =
     typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
