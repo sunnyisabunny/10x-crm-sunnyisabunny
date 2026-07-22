@@ -19,7 +19,7 @@ shaped like a retro game's health bar.
 
 ## Live Demo
 
-**https://REPLACE-WITH-DEPLOYED-URL.vercel.app**
+**https://10x-crm-eta.vercel.app**
 
 ## Test Account
 
