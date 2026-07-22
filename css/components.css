@@ -458,9 +458,12 @@ label.btn { cursor: pointer; }
   gap: var(--sp-4);
   align-items: center;
   padding: var(--sp-4);
-  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  /* NO backdrop-filter here, deliberately — see the note on --glass-solid
+     in tokens.css. There are thirty of these on the clients page, and
+     thirty live blur layers over a moving background is the single most
+     expensive thing this app was doing. The fill is opaque enough that
+     the difference is not visible; the cost difference is enormous. */
+  background-image: var(--gloss-face), linear-gradient(var(--glass-solid), var(--glass-solid));
   border: 1px solid var(--chrome-edge);
   border-radius: var(--r-3);
   box-shadow: var(--shadow-hard-sm);
@@ -471,7 +474,12 @@ label.btn { cursor: pointer; }
 
 /* A thin iridescent seam down the leading edge. Hidden until hover, so
    a list of thirty cards is not thirty rainbows — it only lights up on
-   the one you are pointing at. */
+   the one you are pointing at.
+
+   The ANIMATION is on the hover state too, not just the opacity. It used
+   to run unconditionally: thirty cards each repainting a scrolling
+   gradient, forever, all of them invisible at opacity 0. Being unable to
+   see an animation does not stop the browser drawing it. */
 .client-card::before {
   content: "";
   position: absolute;
@@ -481,7 +489,6 @@ label.btn { cursor: pointer; }
   background-size: 100% 300%;
   opacity: 0;
   transition: opacity var(--t-fast);
-  animation: iri-slide 6s linear infinite;
 }
 
 @keyframes iri-slide {
@@ -494,7 +501,10 @@ label.btn { cursor: pointer; }
   box-shadow: var(--shadow-hard), var(--bloom-md) var(--accent);
 }
 
-.client-card:hover::before { opacity: 1; }
+.client-card:hover::before {
+  opacity: 1;
+  animation: iri-slide 6s linear infinite;
+}
 
 .client-card::after {
   content: "";
@@ -819,9 +829,10 @@ label.btn { cursor: pointer; }
   position: relative;
   overflow: hidden;
   padding: var(--sp-4);
-  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  /* Opaque fill rather than a live blur, for the same reason as
+     .client-card — there are four to six of these on a page, sitting
+     directly under the sweep. */
+  background-image: var(--gloss-face), linear-gradient(var(--glass-solid), var(--glass-solid));
   border: 1px solid var(--chrome-edge);
   border-radius: var(--r-3);
   box-shadow: var(--lift);
@@ -1087,9 +1098,6 @@ body.crt-mode {
 
   --border: color-mix(in srgb, var(--phosphor) 45%, transparent);
   --chrome-edge: color-mix(in srgb, var(--phosphor) 55%, transparent);
-  --rain-color: var(--phosphor);
-  --rain-alpha: 1;
-
   --scanline-alpha: 0.34;
   --glow-strength: 20px;
 
@@ -1101,11 +1109,12 @@ body.crt-mode {
   text-shadow: 0 0 8px var(--phosphor);
 }
 
-/* Heavier vignette and a hard flicker on the glass. */
+/* Heavier vignette and a hard flicker on the glass. The sweep is not
+   named here any more: it lives on body::after now, where it is moved
+   by a transform, and it keeps running on its own. */
 body.crt-mode::before {
   --vignette: radial-gradient(ellipse at center, transparent 28%, rgba(0, 0, 0, 0.92) 100%);
-  animation: crt-sweep var(--t-sweep) linear infinite,
-             flicker 110ms steps(2, end) infinite;
+  animation: flicker 110ms steps(2, end) infinite;
 }
 
 /* Chromatic aberration: the red and blue guns very slightly out of
@@ -1387,3 +1396,4 @@ body.crt-mode h3 {
 
   .toast { min-width: 0; max-width: none; }
 }
+
