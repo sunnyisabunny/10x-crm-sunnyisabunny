@@ -24,9 +24,13 @@ function renderIdentity() {
   const user = getCurrentUser();
   if (!user) return;
 
-  /* Initials rather than an uploaded photo — no file upload is in scope, and
-     initials always work. */
-  document.getElementById('id-avatar').textContent = getInitials(user.fullName);
+  /* The uploaded photo if there is one, initials if not. createAvatar() in
+     ui.js decides that, so this page and the clients page cannot disagree. */
+  document.getElementById('id-avatar')
+    .replaceChildren(createAvatar(user.avatar, user.fullName, 'avatar--lg'));
+
+  /* Remove is only offered when there is something to remove. */
+  document.getElementById('avatar-remove').hidden = !user.avatar;
 
   /* textContent, not innerHTML: the name and company are whatever the user
      typed at registration. */
@@ -188,6 +192,57 @@ async function handleReset() {
 }
 
 /* ==================================================================
+   Profile photo
+   ================================================================== */
+
+/**
+ * Store a chosen photo against the logged-in account.
+ *
+ * The file is never stored as it arrived: readImageAsAvatar() in ui.js crops
+ * it square and re-encodes it at 128x128 first, which is what keeps a phone
+ * photo from consuming the whole localStorage budget.
+ *
+ * updateUser() returns false if the write failed, which is almost always the
+ * quota. Saying so plainly matters — a picture that silently does not save is
+ * far more confusing than one that explains itself.
+ */
+async function handleAvatarChange(event) {
+  const input = event.target;
+  const file = input.files[0];
+  const errorSlot = document.querySelector('[data-error-for="avatar-input"]');
+
+  errorSlot.textContent = '';
+  if (!file) return;
+
+  try {
+    const dataUrl = await readImageAsAvatar(file);
+    const user = getCurrentUser();
+
+    if (!updateUser(user.id, { avatar: dataUrl })) {
+      errorSlot.textContent = 'Not enough browser storage left to save that photo';
+      return;
+    }
+
+    renderIdentity();
+    showToast('Profile photo updated ✓', 'success');
+  } catch (error) {
+    errorSlot.textContent = error.message;
+  } finally {
+    /* Clear the input so choosing the SAME file again still fires a change
+       event. Without this, removing a photo and re-picking the identical file
+       would do nothing at all. */
+    input.value = '';
+  }
+}
+
+function handleAvatarRemove() {
+  const user = getCurrentUser();
+  updateUser(user.id, { avatar: '' });
+  renderIdentity();
+  showToast('Profile photo removed', 'info');
+}
+
+/* ==================================================================
    Start-up
    ================================================================== */
 
@@ -201,6 +256,9 @@ function initProfile() {
   const passwordForm = document.getElementById('password-form');
   passwordForm.addEventListener('submit', handlePasswordSubmit);
   enableLiveErrorClearing(passwordForm);
+
+  document.getElementById('avatar-input').addEventListener('change', handleAvatarChange);
+  document.getElementById('avatar-remove').addEventListener('click', handleAvatarRemove);
 
   document.getElementById('reset-btn').addEventListener('click', handleReset);
 }

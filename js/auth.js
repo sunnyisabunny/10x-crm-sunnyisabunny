@@ -152,12 +152,20 @@ function setUpLoginForm() {
 
     if (!user || user.password !== password) {
       /*
-        One deliberately vague message for both failures.
+        ==================================================================
+        SECURITY DECISION 8 — one deliberately vague message for both failures
+        Explained in full in SECURITY.md, section 8.
+        ==================================================================
 
         Saying "no account with that email" would tell an attacker which
         addresses are registered, which they could then target with password
-        guessing or a convincing phishing email. Real products keep the two
+        guessing or a convincing phishing email. It turns the login form into a
+        tool for discovering who uses the product — and that is worth something
+        on its own, quite apart from breaking in. Real products keep the two
         cases indistinguishable for exactly this reason.
+
+        This one costs nothing and would still be correct with a server behind
+        it, unlike decisions 1 and 2.
 
         The border goes on both fields because we are not revealing which one
         was wrong.

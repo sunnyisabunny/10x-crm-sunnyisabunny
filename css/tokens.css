@@ -43,11 +43,22 @@
   --sp-7: 48px;
   --sp-8: 64px;
 
-  /* ---- Radii: hard edges are the signature --------------------
-     Nothing in this design system is rounder than 4px. */
+  /* ---- Radii --------------------------------------------------
+     Hard edges used to be a global law here, and that was the
+     mistake that flattened the whole design: chrome gloss needs
+     soft, generous curves and neon needs blur, so a blanket "max
+     4px, zero blur" rule made two of the three references
+     impossible to draw and pixel-art won by default.
+
+     Hard edges are now a property of the PIXEL layer only —
+     icons, dividers, sprites. Chrome controls (buttons, chips,
+     pills) use --r-3 and up. */
   --r-0: 0px;
   --r-1: 2px;
   --r-2: 4px;
+  --r-3: 8px;      /* chrome panels */
+  --r-4: 14px;     /* glossy cards */
+  --r-pill: 999px; /* buttons, chips — the Y2K candy shape */
 
   /* ---- Motion -------------------------------------------------
      --t-snap uses steps() rather than a smooth curve. That makes
@@ -57,9 +68,26 @@
   --t-fast: 140ms cubic-bezier(0.2, 0.9, 0.3, 1);
   --t-med: 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
 
+  /* Ambient motion: things that move on their own, forever, with
+     nobody touching them. This is what stops the app feeling dead
+     between clicks. Deliberately slow — an idle loop that repeats
+     faster than about 2s reads as a fault rather than atmosphere.
+     All of it is switched off by prefers-reduced-motion. */
+  --t-drift: 26s;     /* haze blobs wandering across the page */
+  --t-rain: 7s;       /* digital rain falling */
+  --t-sweep: 9s;      /* horizontal scan pass */
+  --t-shimmer: 6s;    /* specular highlight travelling over chrome */
+  --t-pulse: 2.4s;    /* status dots breathing */
+
   /* ---- Layout -------------------------------------------------- */
   --tap-min: 44px;          /* accessibility floor for any control */
   --shell-max: 1200px;
+
+  /* The strip along the left edge that belongs to RONIN and nothing else.
+     His canvas is 104px, he sits 16px in from the edge, and the rest is a
+     gutter so content never touches him. Used by base.css to keep the page
+     out of his way — see the note there. */
+  --ronin-strip: 136px;
   --card-max: 420px;        /* auth card width, per P1.1 */
 }
 
@@ -93,8 +121,61 @@
   --on-accent: #05060A;
 
   --grid-line: rgba(42, 51, 71, 0.4);
-  --scanline-alpha: 0.035;
-  --glow-strength: 10px;
+  --scanline-alpha: 0.05;
+  --glow-strength: 14px;
+
+  /* ---- LAYER 1: CHROME -------------------------------------
+     A glossy surface is three things stacked: a bright top half,
+     a hard mid-line where the "glass" breaks, and a darker bottom
+     half. --gloss-face paints all three in one gradient, laid
+     OVER a component's own background colour so every surface
+     keeps its identity and only gains the sheen. */
+  --gloss-face: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.04) 45%,
+    rgba(0, 0, 0, 0.10) 46%,
+    rgba(0, 0, 0, 0.22) 100%
+  );
+
+  /* The specular strip: the hard white glare across the top edge
+     of moulded plastic. Applied to a ::before, never the element,
+     so it can be animated independently. */
+  --gloss-spec: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.40),
+    rgba(255, 255, 255, 0) 62%
+  );
+
+  --glass: rgba(16, 20, 31, 0.72);
+  --glass-blur: blur(14px) saturate(150%);
+  --chrome-edge: rgba(255, 255, 255, 0.16);
+
+  /* ---- LAYER 2: BLOOM ---------------------------------------
+     Offset and blur only — the COLOUR is supplied where it is
+     used, so one token serves every accent:
+         box-shadow: var(--bloom-md) var(--accent); */
+  --bloom-sm: 0 0 8px;
+  --bloom-md: 0 0 20px;
+  --bloom-lg: 0 0 44px;
+
+  /* Iridescence: the oil-slick sheen on a CD. Deliberately loops
+     back to violet so it can scroll forever without a seam. */
+  --iri: linear-gradient(
+    115deg,
+    var(--violet), var(--cyan), var(--magenta), var(--lime), var(--violet)
+  );
+
+  /* Atmosphere: two coloured clouds drifting behind everything,
+     which is what gives a flat page depth. */
+  --haze-a: radial-gradient(closest-side, rgba(0, 240, 255, 0.16), transparent);
+  --haze-b: radial-gradient(closest-side, rgba(255, 46, 151, 0.14), transparent);
+  --vignette: radial-gradient(ellipse at center, transparent 42%, rgba(0, 0, 0, 0.62) 100%);
+
+  /* ---- Terminal / Matrix vocabulary -------------------------- */
+  --phosphor: #39FF14;
+  --rain-color: rgba(57, 255, 20, 0.5);
+  --rain-alpha: 1;
 }
 
 /* ============================================================
@@ -127,7 +208,50 @@
 
   --grid-line: rgba(154, 168, 196, 0.3);
   --scanline-alpha: 0.02;
-  --glow-strength: 0px;
+  --glow-strength: 7px;
+
+  /* ---- LAYER 1: CHROME (candy plastic) ----------------------
+     The light theme is where this look is most at home: an iMac
+     G3 / Aqua button is a white glare over a colour, not a flat
+     fill. So the gloss here is far stronger than in dark, where
+     the same treatment would wash the neon out. */
+  --gloss-face: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.50) 45%,
+    rgba(150, 175, 205, 0.14) 46%,
+    rgba(120, 145, 180, 0.26) 100%
+  );
+
+  --gloss-spec: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 1),
+    rgba(255, 255, 255, 0) 70%
+  );
+
+  --glass: rgba(255, 255, 255, 0.66);
+  --glass-blur: blur(14px) saturate(170%);
+  --chrome-edge: rgba(255, 255, 255, 0.9);
+
+  /* Bloom is dialled well down. On a light background a wide glow
+     turns into grey mush and eats the contrast that body text
+     depends on. */
+  --bloom-sm: 0 0 4px;
+  --bloom-md: 0 0 10px;
+  --bloom-lg: 0 0 20px;
+
+  --iri: linear-gradient(
+    115deg,
+    var(--violet), var(--cyan), var(--magenta), var(--lime), var(--violet)
+  );
+
+  --haze-a: radial-gradient(closest-side, rgba(0, 190, 230, 0.20), transparent);
+  --haze-b: radial-gradient(closest-side, rgba(255, 130, 200, 0.18), transparent);
+  --vignette: radial-gradient(ellipse at center, transparent 55%, rgba(90, 110, 145, 0.20) 100%);
+
+  --phosphor: #1E7A05;
+  --rain-color: rgba(80, 120, 160, 0.30);
+  --rain-alpha: 0.5;
 }
 
 /* ============================================================
@@ -163,7 +287,30 @@
   --shadow-hard-sm: 2px 2px 0 var(--bevel-dark);
   --shadow-hard-lg: 6px 6px 0 var(--bevel-dark);
 
-  /* The active-window title bar gradient — the single most
-     recognisable Windows 2000 cue in the whole system. */
-  --titlebar: linear-gradient(90deg, var(--violet), var(--cyan));
+  /* The active-window title bar. Now the iridescent ramp rather
+     than a two-stop fade, and sized at 300% so it can be scrolled
+     under the element to make the sheen travel. */
+  --titlebar: var(--iri);
+
+  /* ---- Composites -------------------------------------------
+     Whole recipes, so a component asks for "a chrome panel"
+     instead of restating five properties and drifting from its
+     neighbours.
+
+     Order matters in --chrome-panel: the gloss gradient must come
+     FIRST so it sits on top of the surface colour underneath it.
+     Backgrounds paint first-to-last, front-to-back. */
+  --chrome-panel: var(--gloss-face), linear-gradient(var(--surface), var(--surface));
+  --chrome-raised: var(--gloss-face), linear-gradient(var(--surface-up), var(--surface-up));
+
+  /* A lifted chrome object: bloom underneath, hard bevel on the
+     face, bright hairline along the top edge. */
+  --lift: 0 6px 22px rgba(0, 0, 0, 0.45),
+          inset 0 1px 0 var(--chrome-edge),
+          var(--bevel-out);
+
+  /* Focus is a bloom now, not a flat ring. The 2px solid ring is
+     kept underneath it so focus is still visible for anyone who
+     cannot perceive the glow, and in forced-colours mode. */
+  --focus-bloom: 0 0 0 2px var(--accent), var(--bloom-md) var(--accent);
 }

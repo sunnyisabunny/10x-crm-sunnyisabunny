@@ -13,9 +13,62 @@
   padding: 0;
 }
 
+/* ============================================================
+   THE ATMOSPHERE STACK
+
+   Five layers, painted back to front. Everything except the grid
+   is a fixed, non-interactive pseudo-element, so the whole scene
+   stays put while the page scrolls through it — which is what
+   makes it read as depth rather than as wallpaper.
+
+     html            void colour + blueprint grid
+     html::before    two drifting coloured haze clouds   z -2
+     body::after     digital rain                        z -1
+     ...content...
+     body::before    scanlines + vignette                z 9999
+
+   The negative z-indexes are why `body` must have NO background
+   of its own: a background on body would paint over both of the
+   layers sitting behind it.
+   ============================================================ */
+
 html {
   /* Stops iOS from auto-inflating text and breaking the pixel grid. */
   -webkit-text-size-adjust: 100%;
+
+  background-color: var(--bg-void);
+
+  /* Dystopian blueprint grid. Two 1px gradients crossed at 32px make a
+     graph-paper field without a single image request. Fixed, so it reads
+     as a surface the page slides over rather than paper it is printed on. */
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-attachment: fixed;
+
+  transition: background-color var(--t-med);
+}
+
+/* ---- Haze: two coloured clouds, slowly wandering ------------------
+   A flat page has no depth cues at all. Two large, very soft radial
+   gradients moving out of step with each other suggest volume behind
+   the interface without ever being identifiable as shapes. */
+html::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -2;
+  pointer-events: none;
+  background-image: var(--haze-a), var(--haze-b);
+  background-repeat: no-repeat;
+  background-size: 60vmax 60vmax, 52vmax 52vmax;
+  background-position: 12% 18%, 82% 72%;
+  animation: haze-drift var(--t-drift) ease-in-out infinite alternate;
+}
+
+@keyframes haze-drift {
+  to { background-position: 30% 62%, 58% 24%; }
 }
 
 body {
@@ -24,36 +77,82 @@ body {
   font-size: var(--fs-base);
   line-height: var(--lh-base);
   color: var(--text);
-  background-color: var(--bg-void);
 
-  /* Dystopian blueprint grid. Two 1px gradients crossed at 32px make a
-     graph-paper field without a single image request. */
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 32px 32px;
+  /* Intentionally no background — see the stack comment above. */
+  background: transparent;
 
   -webkit-font-smoothing: antialiased;
-  transition: background-color var(--t-med), color var(--t-med);
+  transition: color var(--t-med);
 }
 
-/* ---- CRT scanline overlay ---------------------------------------
-   A fixed, non-interactive sheet of 1px dark lines every 3px. Kept
-   very faint (3.5% dark / 2% light) so it reads as atmosphere and
-   never as noise over body text. The Konami easter egg turns this up. */
+/* ---- Digital rain -------------------------------------------------
+   Drawn by js/atmosphere.js onto a canvas, not by CSS.
+
+   This started as pure CSS — scrolling vertical gradients — and it was
+   wrong. It moved, but it had no characters in it, so it read as
+   stripes rather than as falling code. Real rain needs individual
+   glyphs that change as they fall, and CSS cannot draw text it was
+   never given. The canvas can.
+
+   All this rule does is place and size the element; everything you
+   actually see is painted in JavaScript. The opacity is set inline by
+   the script from a single named constant, so there is one place to
+   turn the whole effect up or down. */
+.rain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ---- CRT glass: scanlines + vignette -----------------------------
+   The front pane of the monitor, over everything including modals.
+
+   Three things in one fixed sheet: 1px scanlines every 3px, a slow
+   bright band sweeping down the screen like a refresh pass, and a
+   vignette darkening the corners. The vignette is what makes the
+   whole page look like a curved screen rather than a flat document,
+   and it is the cheapest depth in the entire design.
+
+   Kept subtle on purpose — this sits on top of body text, so any
+   heavier and it stops being atmosphere and starts being noise. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 9999;
   pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, var(--scanline-alpha)) 0px,
-    rgba(0, 0, 0, var(--scanline-alpha)) 1px,
-    transparent 1px,
-    transparent 3px
-  );
+
+  background-image:
+    /* the refresh sweep — a wide, very faint bright band */
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.035) 45%,
+      rgba(255, 255, 255, 0.06) 50%,
+      rgba(255, 255, 255, 0.035) 55%,
+      transparent 100%
+    ),
+    /* the scanlines */
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, var(--scanline-alpha)) 0px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    /* the vignette */
+    var(--vignette);
+
+  background-size: 100% 45vh, 100% 100%, 100% 100%;
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-position: 0 -45vh, 0 0, 0 0;
+
+  animation: crt-sweep var(--t-sweep) linear infinite;
+}
+
+@keyframes crt-sweep {
+  to { background-position: 0 100vh, 0 0, 0 0; }
 }
 
 /* ---- Typography -------------------------------------------------- */
@@ -63,6 +162,10 @@ h1, h2, h3 {
   line-height: var(--lh-tight);
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  /* Headings are short, large and never sit on top of other text, so
+     they can carry a real bloom without hurting anything's legibility.
+     currentColor means this follows whatever colour the heading is. */
+  text-shadow: 0 0 18px currentColor;
 }
 
 h1 { font-size: var(--fs-display); }
@@ -102,6 +205,11 @@ img { max-width: 100%; display: block; }
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  /* The glow is the decoration; the solid outline above is the actual
+     accessibility guarantee. Anyone who cannot perceive the bloom, or
+     is in forced-colours mode where shadows are dropped, still gets an
+     unambiguous 2px ring. */
+  box-shadow: var(--bloom-md) var(--accent);
 }
 
 ::selection {
@@ -129,6 +237,32 @@ img { max-width: 100%; display: block; }
   max-width: var(--shell-max);
   margin: 0 auto;
   padding: var(--sp-6) var(--sp-4);
+}
+
+/*
+  RONIN'S RESERVED STRIP.
+
+  He is fixed to the bottom-left corner, so without this the page simply
+  scrolls underneath him and he sits on top of whatever happens to be there —
+  a client card, a chart, the danger zone.
+
+  The fix is to make sure the page is never laid out in his corner at all.
+  Note that on a WIDE screen this is already true for free: the shell is
+  centred at a maximum of 1200px, so anything wider leaves empty margin either
+  side and he stands in it. The overlap only begins once those natural margins
+  are narrower than the strip he needs, which is at:
+
+      1200px of shell  +  136px of strip on each side  =  1472px
+
+  So below that width the shell is pushed right by the difference. Above it,
+  nothing happens, because nothing needs to. Below 720px he hides entirely
+  (see components.css) and the padding goes with him, because a phone has no
+  room to give away.
+*/
+@media (min-width: 721px) and (max-width: 1471px) {
+  .shell {
+    padding-left: calc(var(--sp-4) + var(--ronin-strip));
+  }
 }
 
 .stack   { display: grid; gap: var(--sp-4); }
@@ -168,4 +302,12 @@ img { max-width: 100%; display: block; }
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* Stopping the animation would leave the rain frozen on screen as a
+     grid of static lines, which is worse than not having it: it is
+     visual noise that no longer explains itself. So it is removed
+     outright, and the haze is flattened to a still wash. */
+  body::after { display: none; }
+
+  html::before { animation: none; }
 }

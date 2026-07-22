@@ -17,6 +17,11 @@ structural work rather than decoration: a modal genuinely is a window with a
 title bar, the navigation genuinely is a taskbar, and the pipeline chart is
 shaped like a retro game's health bar.
 
+Three visual layers share the screen and each has a defined job, so none of them
+swallows the others: **chrome** owns panels, buttons and cards; **neon bloom**
+owns accents, focus and headings; **pixel art** owns icons, the display font and
+the assistant. Behind all of it, digital rain falls in half-width katakana.
+
 ## Live Demo
 
 **https://10x-crm-eta.vercel.app**
@@ -39,7 +44,7 @@ fresh browser starts with the demo account and the original 30 clients.
 - Registration with six validation rules, all reported together on one submit
 - Login with a deliberately generic failure message, so the app never reveals
   which email addresses are registered
-- Route protection: the three private pages cannot be opened without a session,
+- Route protection: the four private pages cannot be opened without a session,
   and a logged-in visitor is redirected away from the login page
 - Logout closes the session without deleting any data
 
@@ -51,6 +56,7 @@ fresh browser starts with the demo account and the original 30 clients.
 - Search by name or company, filter by stage, and sort by date, name or deal
   value — all three combine
 - Client details with a running history of dated notes
+- A photo per client, uploaded from your machine and shrunk before it is stored
 - "Remind me in 1 min" follow-up notification, which still fires after the
   window is closed
 - Loading, empty and error states, with a working Retry when the connection fails
@@ -61,8 +67,25 @@ fresh browser starts with the demo account and the original 30 clients.
 - Pipeline chart showing the spread of deals across the four stages
 - The five most recently added clients
 
+### Analytics
+A diagnostic board in the style of an old server terminal. The dashboard says
+what **is**; this page says what is **wrong**, and it is deliberately not a
+second dashboard:
+
+- A scan that reads your data and reports findings, worst first — deals nobody
+  has touched in two weeks, deals open more than twice your usual cycle, and
+  revenue concentrated in a single client
+- Each finding names the actual clients, so it can be acted on
+- A conversion funnel: not how many deals sit in each stage, but the percentage
+  lost moving between them
+- A revenue forecast — open pipeline cut down by your real win rate, because a
+  pipeline total on its own is a wish
+- Export the whole CRM to a JSON file and load it back in. The export contains
+  no password and no email address
+
 ### Profile
 - Account details with an avatar generated from your initials
+- Upload a profile photo, resized to 128px and stored inside your account record
 - Edit your name and company
 - Change your password, with the old one required
 - Reset the client database without touching your account
@@ -71,11 +94,17 @@ fresh browser starts with the demo account and the original 30 clients.
 - Dark and light themes, remembered between visits
 - Keyboard shortcuts — press `?` on the Clients page to see them
 - Responsive layout
+- **RONIN**, a pixel-art samurai who is an actual assistant rather than a mascot:
+  he carries a live count of things that need attention, and clicking him names
+  the single most urgent problem and the client it concerns, with a button that
+  opens exactly that client. New accounts get a short guided tour
+- Digital rain behind every page, drawn on a canvas in half-width katakana
 - An easter egg. It is a keyboard sequence every gamer knows.
+- Every animation stops for anyone whose system asks for reduced motion
 
 ## Tech Stack
 
-- **HTML5** — five separate pages, no single-page-app routing
+- **HTML5** — six separate pages, no single-page-app routing
 - **CSS3** — custom properties for theming, no preprocessor, no framework
 - **Vanilla JavaScript (ES2020+)** — no React, no Vue, no jQuery, no dependencies
 - **localStorage** — all persistence, no backend
@@ -90,17 +119,26 @@ index.html      Login              css/tokens.css       colours, fonts, spacing
 signup.html     Registration       css/base.css         reset, page background
 dashboard.html  Summary            css/components.css   buttons, cards, windows
 clients.html    Client database    css/pages.css        per-page layout
-profile.html    Account
+analytics.html  Diagnostics
+profile.html    Account            assets/ronin.png     the assistant's sprites
 
 js/storage.js     the only file that touches localStorage
-js/ui.js          validation rules, notifications, formatting
-js/app.js         route protection, theme, shared navigation
-js/data.js        API calls, caching, filtering and sorting
+js/ui.js          validation rules, notifications, formatting, photo resizing
+js/app.js         route protection, theme, shared navigation, the easter egg
+js/data.js        API calls, caching, filtering, sorting, the diagnosis engine
 js/auth.js        registration and login
 js/clients.js     the client list
 js/dashboard.js   the statistics
+js/analytics.js   the diagnostics, the funnel, JSON export and import
 js/profile.js     the account page
+js/atmosphere.js  the digital rain
+js/assistant.js   RONIN — the badge, the advice, the tour
 ```
+
+The diagnosis engine lives in `data.js` rather than on the analytics page
+because **two** features need it: the analytics board renders it as a report,
+and RONIN speaks the most urgent line of it on every page. One copy of the
+rules means the assistant can never contradict the page.
 
 ## How to Run
 
@@ -125,15 +163,25 @@ an internet connection once the clients have loaded once.
 
 Passwords are stored as readable text in the browser, and the route protection
 can be bypassed with developer tools. **Both would be unacceptable in a real
-product.** They are unavoidable here because the assignment specifies no backend,
-and there is no point hashing passwords in the browser — an attacker reading the
-same JavaScript can run the same hash, so it would be theatre rather than
-security. Real systems store a slow salted hash on a server and enforce access
-there, because the client is attacker-controlled by definition. This is explained
-in more detail in the comments in `js/storage.js`.
+product**, and both are unavoidable here: the assignment specifies no backend,
+which means all of the code and all of the data sit on the visitor's own
+computer. Hashing passwords in the browser would be *theatre* — an attacker
+reading the same JavaScript can run the same hash — and would arguably be worse
+than nothing, because the stored hash would itself become the credential.
+
+But not everything here is a compromise. The defences against cross-site
+scripting, the allowlist on imported files, the credentials left out of every
+export and the coercion of URL parameters are **real** and would still be real
+with a server behind them.
+
+**[`SECURITY.md`](SECURITY.md) explains all eight decisions in plain English** —
+what each one is, why it is like that here, and what changes when there is a
+server. Each is also marked in the code it governs, as
+`SECURITY DECISION 1`…`8`, so the file and the source can be read side by side.
 
 ## Documentation
 
+- [`SECURITY.md`](SECURITY.md) — every security decision, and what a real product does instead
 - [`ai-log.md`](ai-log.md) — how AI was used, including what was rejected and why
 - [`glossary.md`](glossary.md) — 10 technical terms from this project
 - [`research-note.md`](research-note.md) — the English source used and what it changed

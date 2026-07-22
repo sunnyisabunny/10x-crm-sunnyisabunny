@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en" data-page="analytics" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analytics — 10X CRM</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</head>
+
+<body>
+  <nav class="taskbar">
+    <a class="taskbar__logo" href="dashboard.html">10X CRM</a>
+    <a class="nav-link" href="dashboard.html" data-nav="dashboard">Dashboard</a>
+    <a class="nav-link" href="clients.html" data-nav="clients">Clients</a>
+    <a class="nav-link" href="analytics.html" data-nav="analytics">Analytics</a>
+    <a class="nav-link" href="profile.html" data-nav="profile">Profile</a>
+    <span class="taskbar__spacer"></span>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch theme">☀</button>
+    <button class="icon-btn" type="button" data-logout>Logout</button>
+  </nav>
+
+  <main class="shell">
+    <div class="page-head">
+      <h1 class="page-title">Analytics</h1>
+    </div>
+
+    <!-- ============================================================
+         THE DIAGNOSTIC.
+
+         This is what separates this page from the dashboard. The
+         dashboard reports the current state: how many clients, how
+         much revenue, what is in each stage. This page reads the same
+         data and says what is WRONG with it — which deals have gone
+         quiet, which are stuck, whether the revenue is dangerously
+         concentrated in one account.
+
+         Written as a scan because a report that names problems and
+         ranks them by severity is what a terminal diagnostic does.
+         ============================================================ -->
+    <div class="window terminal">
+      <div class="window__bar">
+        <span class="window__title">DIAGNOSTIC_SCAN</span>
+      </div>
+
+      <div class="window__body">
+        <pre class="terminal__log" id="scan-log" aria-live="polite"></pre>
+      </div>
+    </div>
+
+    <!-- The detail behind any WARN or FAIL above: the actual clients
+         involved, worst first, so the page ends in something to do
+         rather than something to look at. Built by js/analytics.js. -->
+    <div id="findings" class="stack" style="margin-bottom: var(--sp-4)"></div>
+
+    <div class="analytics-grid">
+      <!-- Conversion funnel. Deliberately NOT the dashboard's pipeline
+           bar: that shows how many sit in each stage, this shows the
+           percentage lost moving between them. -->
+      <div class="window">
+        <div class="window__bar">
+          <span class="window__title">CONVERSION_FUNNEL</span>
+        </div>
+        <div class="window__body">
+          <canvas id="chart-funnel" class="chart" width="640" height="300"
+                  role="img" aria-label="Conversion funnel with drop-off between stages"></canvas>
+          <p class="sr-only" id="chart-funnel-text"></p>
+        </div>
+      </div>
+
+      <!-- Revenue actually realised, by month. Meaningless until the
+           starter data was given real history; see js/data.js. -->
+      <div class="window">
+        <div class="window__bar">
+          <span class="window__title">REVENUE_BY_MONTH</span>
+        </div>
+        <div class="window__body">
+          <canvas id="chart-revenue" class="chart" width="640" height="300"
+                  role="img" aria-label="Revenue won per month"></canvas>
+          <p class="sr-only" id="chart-revenue-text"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         Forecast. The dashboard shows what has already happened;
+         this projects what the open pipeline is actually worth once
+         the historical win rate is applied to it.
+         ============================================================ -->
+    <div class="window terminal">
+      <div class="window__bar">
+        <span class="window__title">FORECAST.OUT</span>
+      </div>
+      <div class="window__body">
+        <pre class="terminal__table" id="forecast-table"></pre>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         Export / import. The only place in the app that reads or
+         writes a real file.
+         ============================================================ -->
+    <div class="window">
+      <div class="window__bar">
+        <span class="window__title">DATA_TRANSFER</span>
+      </div>
+
+      <div class="window__body stack">
+        <p style="line-height: var(--lh-base)">
+          Everything in this CRM lives in this browser only. Export writes your
+          whole client database to a file you keep; import loads one back.
+          <strong>Your password is never exported</strong> — a backup file that
+          contained it would be a genuine hazard to store or send.
+        </p>
+
+        <div class="row">
+          <button class="btn btn--primary" type="button" id="export-btn">Export JSON</button>
+
+          <input class="sr-only" type="file" id="import-input" accept="application/json,.json">
+          <label class="btn" for="import-input">Import JSON</label>
+        </div>
+
+        <p class="field__error" data-error-for="import-input"></p>
+        <p class="mono text-faint" id="transfer-status" style="font-size: var(--fs-xs)"></p>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/ui.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/analytics.js"></script>
+  <script src="js/assistant.js"></script>
+  <script src="js/atmosphere.js"></script>
+</body>
+</html>

@@ -1,11 +1,13 @@
 /**
  * app.js — the shared shell that runs on all five pages.
  *
- * Three jobs, all of which the assignment says must live in one place rather
+ * Four jobs, all of which the assignment says must live in one place rather
  * than being copied onto every page (P0.1, P0.2, P0.3):
  *   1. Auth guard  — decide whether this visitor is allowed to be here
  *   2. Theme       — apply the saved dark/light choice
  *   3. Navigation  — mark the active link, wire Logout and the theme button
+ *   4. Easter egg  — the Konami code, which belongs here for exactly the same
+ *                    reason as the other three: it is app-wide behaviour
  *
  * WHY THIS SCRIPT IS IN <head> AND NOT DEFERRED
  * Jobs 1 and 2 have to finish before the browser paints anything. If the guard
@@ -21,7 +23,7 @@
  */
 
 /* Pages that require a session. Everything else is public. */
-const PROTECTED_PAGES = ['dashboard', 'clients', 'profile'];
+const PROTECTED_PAGES = ['dashboard', 'clients', 'analytics', 'profile'];
 
 const currentPage = document.documentElement.dataset.page || '';
 
@@ -41,9 +43,29 @@ const currentPage = document.documentElement.dataset.page || '';
  * current script, so the caller returns early to avoid doing pointless work on
  * a page that is about to be replaced.
  *
- * This is convenience, not security: anyone can edit localStorage in DevTools.
- * With no backend there is nothing to actually protect — real access control
- * has to happen on a server, which this project does not have.
+ * ======================================================================
+ * SECURITY DECISION 2 — this guard is navigation, not access control
+ * Explained in full in SECURITY.md, section 2.
+ * ======================================================================
+ *
+ * Anyone can defeat it in about five seconds, by typing this into the console
+ * on the login page:
+ *
+ *     localStorage.setItem('crm_session', JSON.stringify({ userId: 1 }));
+ *
+ * The guard's only question is "is there a session in storage?", and they have
+ * just written one. So it stops people who are not trying, and only those.
+ *
+ * It is still worth having, because it does a genuinely useful job: it keeps
+ * the app coherent. A logged-out visitor should not land on a dashboard full
+ * of blank statistics. It is a ROUTING feature, and calling it security would
+ * be the mistake — with no backend there is nothing here that can enforce
+ * anything, because real access control has to happen somewhere the visitor
+ * does not control.
+ *
+ * A real product checks on the server, on every request, for every piece of
+ * data. The rule is that anything the client says — including "I am logged
+ * in" — is a claim, not a fact.
  */
 function applyAuthGuard() {
   const hasSession = getSession() !== null;
@@ -136,6 +158,61 @@ function handleLogout() {
 }
 
 /* ------------------------------------------------------------------
+   4. Easter egg — the Konami code
+   ------------------------------------------------------------------ */
+
+/**
+ * True when the user is typing, so a shortcut must not steal the keystroke.
+ *
+ * Lives here rather than in clients.js because two separate features need it —
+ * the keyboard shortcuts and this easter egg — and app.js loads before every
+ * page script, so putting it here means both can reach it.
+ */
+function isTyping(target) {
+  return target.tagName === 'INPUT'
+      || target.tagName === 'TEXTAREA'
+      || target.tagName === 'SELECT'
+      || target.isContentEditable;
+}
+
+/*
+  Up, up, down, down, left, right, left, right, B, A.
+
+  Every key press is appended to a list, the list is trimmed to the length of
+  the code, and the two are compared. Trimming as we go is what removes the
+  need for any reset logic or an index to keep in step: the list simply holds
+  the last ten keys at all times, so a wrong key does not "break" the attempt,
+  it just shifts a wrong value into the window.
+*/
+const KONAMI_CODE = [
+  'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
+  'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight',
+  'b', 'a',
+];
+
+function setUpEasterEgg() {
+  let pressed = [];
+
+  document.addEventListener('keydown', (event) => {
+    if (isTyping(event.target)) return;
+
+    /* Arrow keys keep their capitals; single characters are lowercased so
+       Shift or caps lock does not break the sequence. */
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+
+    pressed.push(key);
+    pressed = pressed.slice(-KONAMI_CODE.length);
+
+    if (pressed.join(',') !== KONAMI_CODE.join(',')) return;
+
+    document.body.classList.toggle('crt-mode');
+    const on = document.body.classList.contains('crt-mode');
+    showToast(on ? 'CRT MODE ENGAGED' : 'CRT MODE OFF', 'info');
+    pressed = [];
+  });
+}
+
+/* ------------------------------------------------------------------
    Start-up
    ------------------------------------------------------------------ */
 
@@ -167,6 +244,15 @@ const isRedirecting = applyAuthGuard();
 
 if (!isRedirecting) {
   /* The navigation markup does not exist yet, because this script runs inside
-     <head> while the body is still being parsed. Wait for the parser to finish. */
-  document.addEventListener('DOMContentLoaded', setUpNavigation);
+     <head> while the body is still being parsed. Wait for the parser to finish.
+
+     The easter egg waits too, for a different reason: it calls showToast(),
+     which lives in ui.js — a file that has not been loaded yet at this point.
+     By DOMContentLoaded every script on the page has run, so the function is
+     there. Wiring it inside the handler rather than calling it now is what
+     makes that safe. */
+  document.addEventListener('DOMContentLoaded', () => {
+    setUpNavigation();
+    setUpEasterEgg();
+  });
 }

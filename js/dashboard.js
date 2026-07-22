@@ -13,7 +13,22 @@
    calculation, so both are easy to find and change. */
 const RECENT_CLIENT_COUNT = 5;
 const NEW_CLIENT_WINDOW_DAYS = 7;
-const MS_PER_DAY = 86400000;
+
+/*
+  MS_PER_DAY used to be declared here as well. It now comes from data.js, and
+  the reason is worth remembering, because it is the one real hazard of
+  building without modules.
+
+  Every classic <script> on a page shares ONE global scope. Two files each
+  declaring `const MS_PER_DAY` is therefore not two private constants — it is
+  the same name declared twice in the same scope, which is a SyntaxError, and
+  a SyntaxError in any script stops that whole file from running. The dashboard
+  would have gone blank.
+
+  It never showed up before because the two copies lived in dashboard.js and
+  analytics.js, which are never loaded on the same page. Moving the diagnosis
+  engine into data.js — which IS loaded here — brought them together.
+*/
 
 /* How long the counting-up animation on the statistics runs. */
 const COUNT_UP_MS = 600;
