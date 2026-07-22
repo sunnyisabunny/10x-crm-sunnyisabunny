@@ -316,18 +316,34 @@ function drawFunnel(clients) {
     ctx.textAlign = 'center';
     ctx.fillText(`${stage.label}  ${stage.count}`, centre, y + bandHeight / 2);
 
-    /* The number that makes this a funnel rather than a bar chart: how many
-       were lost getting from the stage above to this one. */
+    /*
+      The number that makes this a funnel rather than a bar chart: how many
+      survived the step from the band above to this one.
+
+      TWO THINGS WERE WRONG WITH THE FIRST VERSION, and the founder spotted the
+      result: "two arrows pointing down, and I do not know what they mean".
+
+      First it was CUT OFF. The label was drawn to the right of the widest
+      band, starting at x 516 on a 640-wide canvas, and needed about 180px. A
+      canvas does not wrap or clip visibly — it simply paints past the edge and
+      that paint is gone — so the sentence lost its last few words with no sign
+      anything was missing. It is centred in the gap now, which cannot overflow
+      because it is anchored to the middle.
+
+      Second it did not say what it was measuring. "45% advance, 55% lost" sits
+      between two bands and belongs to neither on its face. Naming both ends of
+      the step removes the guesswork.
+    */
     if (i > 0) {
-      const previous = stages[i - 1].count;
-      const advanced = previous === 0 ? 0 : stage.count / previous;
+      const previous = stages[i - 1];
+      const advanced = previous.count === 0 ? 0 : stage.count / previous.count;
       const dropped = Math.round((1 - advanced) * 100);
 
       ctx.fillStyle = dropped >= 50 ? danger : dim;
-      ctx.textAlign = 'left';
+      ctx.textAlign = 'center';
       ctx.fillText(
-        `↓ ${Math.round(advanced * 100)}% advance   −${dropped}% lost`,
-        centre + maxWidth / 2 + 16,
+        `${previous.label} → ${stage.label}:  ${Math.round(advanced * 100)}% made it, ${dropped}% did not`,
+        centre,
         y - gap / 2
       );
     }
