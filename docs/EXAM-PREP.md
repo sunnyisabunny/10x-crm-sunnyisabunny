@@ -79,12 +79,12 @@ per concern.
 | `js/app.js` | Auth guard, theme, shared navigation, Konami — all six pages |
 | `js/data.js` | API calls, cache-or-API loading, filter/search/sort |
 | `js/auth.js` | Signup and login |
-| `js/clients.js` | The client list |
+| `js/clients.js` | The client list (and the per-client heartbeat) |
 | `js/dashboard.js` | The statistics |
 | `js/analytics.js` | The diagnostics, the funnel, JSON export and import |
 | `js/profile.js` | The account page |
-| `js/atmosphere.js` | The digital rain |
-| `js/assistant.js` | RONIN — loaded by `dashboard.html` only |
+| `js/atmosphere.js` | The canvas behind every page: **rain in dark, fog + apparitions in light** |
+| `js/assistant.js` | The assistant — **RONIN in dark, SURVIVOR in light** |
 
 If asked *"why is `storage.js` the only file that touches localStorage?"* — so
 that the four key names exist in exactly one place. If a second file wrote
@@ -343,6 +343,34 @@ document.documentElement.dataset.theme = theme;
 Both themes in `css/tokens.css` declare the **same variable names** with
 different values, so flipping that one attribute re-points every colour at once.
 No component knows themes exist — they just use `var(--surface)`.
+
+### The two themes are two designs, not one recoloured
+
+The dark theme is **"Cyber Chrome"**: neon on near-black, a Windows-2000 window
+metaphor, and a Matrix rain falling behind every page. The light theme is
+**"Soft Club, Haunted"** — the cool, drained palette of the late-90s "Gen X
+soft club" look dragged through survival-horror fog. It is not the dark theme
+lightened; it has its own colours, frosted glass instead of neon gloss, no
+glow, and its own atmosphere.
+
+The point to make if asked *why the two feel so different from the same
+tokens*: only the **values** change per theme, never the variable **names** or
+the components. Three places read the theme and do more than recolour:
+
+- **`js/atmosphere.js`** paints one canvas two ways. Dark rains code; light
+  drifts a fog with faces, hands and bloody handprints pressing through it
+  (real textures the founder supplied, packed into an atlas). `applyTheme()`
+  calls `syncAtmosphere()` to swap which painter runs.
+- **`js/assistant.js`** swaps the assistant's whole sprite sheet: RONIN the
+  samurai in dark, SURVIVOR in light, driven by one `RONIN_SKINS` table so the
+  advice logic never changes — a purely visual swap.
+- The **Konami code** is theme-aware: it flips a retro CRT in dark, and in
+  light it triggers "the breach", where the haunting floods the screen.
+
+None of this touches a requirement, and the dark theme — the default — can
+carry the whole demo on its own if you prefer. The heartbeat next to each
+client's status, though, runs in **both** themes: it is built from the status
+tokens, so dark gets a neon trace and light an ink one from the same rule.
 
 ---
 
