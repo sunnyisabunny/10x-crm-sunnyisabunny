@@ -20,6 +20,13 @@
   max-width: var(--card-max);
 }
 
+/* The login screen is the first thing anyone sees, including the examiner,
+   so it gets the full power-on: the card arrives as a CRT snapping awake and
+   the brand name burns in above it. */
+.auth__card {
+  animation: crt-on 420ms steps(9, end) both;
+}
+
 .auth__brand {
   display: block;
   margin-bottom: var(--sp-4);
@@ -29,6 +36,15 @@
   text-align: center;
   text-decoration: none;
   letter-spacing: 0.04em;
+  text-shadow: 0 0 20px var(--accent);
+  animation: brand-warm 1.6s ease-out both;
+}
+
+/* Filament warming up: over-bright and washed out, settling to colour. */
+@keyframes brand-warm {
+  0%   { opacity: 0; filter: brightness(4) saturate(0); letter-spacing: 0.4em; }
+  45%  { opacity: 1; filter: brightness(2.4) saturate(0.5); }
+  100% { opacity: 1; filter: none; letter-spacing: 0.04em; }
 }
 
 .auth__heading {
@@ -53,9 +69,29 @@
 .auth__boot {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  color: var(--text-faint);
+  color: var(--phosphor);
   text-align: center;
   margin-top: var(--sp-3);
+  text-shadow: 0 0 8px var(--phosphor);
+
+  /* Typed out by clipping the line's own width in steps, one character at a
+     time — no JavaScript involved. The step count is roughly the character
+     count of the two boot lines (34 and 36); CSS cannot count characters, so
+     this is approximate by nature. Being a step or two out only changes how
+     many characters appear per tick, never whether the effect works. */
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 2px solid var(--phosphor);
+  animation: type-line 1.4s steps(35, end) 400ms both,
+             blink-caret 800ms steps(2, end) infinite;
+}
+
+@keyframes type-line {
+  from { width: 0; }
+  to   { width: max-content; }
 }
 
 /* ============================================================
@@ -70,12 +106,22 @@
   margin-bottom: var(--sp-5);
 }
 
+/* HUD framing: the angle brackets a targeting overlay puts round a label. */
 .page-title {
   font-family: var(--font-display);
   font-size: var(--fs-display);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
+.page-title::before,
+.page-title::after {
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.page-title::before { content: "[ "; }
+.page-title::after  { content: " ]"; }
 
 .greeting {
   font-family: var(--font-display);
@@ -86,11 +132,20 @@
 
 /* Live clock (P3.1) — tabular figures stop the seconds digit from
    shifting the whole line every tick. */
+/* Live clock (P3.1) — set into a dark instrument well so the glowing digits
+   read as a readout rather than as body text that happens to be coloured. */
 .clock {
+  display: inline-block;
+  padding: var(--sp-1) var(--sp-3);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-sm);
-  color: var(--accent);
+  color: var(--phosphor);
+  background: var(--bg-deep);
+  border: 1px solid color-mix(in srgb, var(--phosphor) 45%, transparent);
+  border-radius: var(--r-pill);
+  box-shadow: var(--bevel-in), var(--bloom-sm) var(--phosphor);
+  text-shadow: 0 0 10px var(--phosphor);
 }
 
 .stat-grid {
@@ -146,10 +201,17 @@
   gap: var(--sp-3);
 }
 
+/* Reads as a line of terminal output rather than a caption. */
 .result-count {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  color: var(--text-faint);
+  color: var(--phosphor);
+  opacity: 0.85;
+}
+
+.result-count::before {
+  content: "> ";
+  opacity: 0.7;
 }
 
 /* ============================================================
@@ -185,12 +247,27 @@
   color: var(--text-dim);
 }
 
+/* The one panel in the app that should make you hesitate. It stops the
+   iridescent pan the other title bars run and switches to a hazard stripe
+   that slides — the visual language of machinery you should not touch. */
 .danger-zone {
   border-color: var(--danger);
+  box-shadow: var(--lift), var(--bloom-md) var(--danger);
 }
 
 .danger-zone .window__bar {
-  background: linear-gradient(90deg, var(--danger), var(--violet));
+  background-image: var(--gloss-spec),
+    repeating-linear-gradient(
+      45deg,
+      var(--danger) 0 12px,
+      color-mix(in srgb, var(--danger) 55%, #000) 12px 24px
+    );
+  background-size: 100% 100%, 34px 34px;
+  animation: hazard-slide 1.4s linear infinite;
+}
+
+@keyframes hazard-slide {
+  to { background-position: 0 0, 34px 0; }
 }
 
 /* ============================================================
@@ -207,6 +284,7 @@
 
 .shortcut-row:last-child { border-bottom: 0; }
 
+/* A real keycap: glossy top, hard bottom edge, sitting proud of the page. */
 .kbd {
   display: inline-grid;
   place-items: center;
@@ -215,7 +293,8 @@
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--text);
-  background: var(--surface-up);
-  border: 2px solid var(--bevel-dark);
-  box-shadow: var(--bevel-out);
+  background-image: var(--gloss-face), linear-gradient(var(--surface-up), var(--surface-up));
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-2);
+  box-shadow: var(--bevel-out), 0 2px 0 var(--bevel-dark);
 }
