@@ -130,10 +130,17 @@ const RONIN_LINES = {
     'Deleted someone by mistake? That one does not come back. Aim carefully.',
     'Thirty souls came in from the wire. The rest are yours.',
   ],
+  analytics: [
+    'Revenue counts closed deals only. Hope is not income.',
+    'Export writes a file you keep. Your password never goes in it.',
+    'Import replaces every client you have. Read the warning twice.',
+    'The bars are total value, not headcount. One whale beats ten minnows.',
+  ],
   profile: [
     'Change your name here and the dashboard greeting follows you.',
     'Reset wipes the client list. Your account survives it.',
     'A new password needs the old one first. No shortcuts through that door.',
+    'A photo gets shrunk to 128 pixels before it is saved. Storage is finite.',
   ],
 };
 

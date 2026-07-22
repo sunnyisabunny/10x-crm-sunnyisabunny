@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en" data-page="analytics" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analytics — 10X CRM</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</head>
+
+<body>
+  <nav class="taskbar">
+    <a class="taskbar__logo" href="dashboard.html">10X CRM</a>
+    <a class="nav-link" href="dashboard.html" data-nav="dashboard">Dashboard</a>
+    <a class="nav-link" href="clients.html" data-nav="clients">Clients</a>
+    <a class="nav-link" href="analytics.html" data-nav="analytics">Analytics</a>
+    <a class="nav-link" href="profile.html" data-nav="profile">Profile</a>
+    <span class="taskbar__spacer"></span>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch theme">☀</button>
+    <button class="icon-btn" type="button" data-logout>Logout</button>
+  </nav>
+
+  <main class="shell">
+    <div class="page-head">
+      <h1 class="page-title">Analytics</h1>
+    </div>
+
+    <!-- ============================================================
+         The whole page is dressed as one machine: a mainframe terminal
+         reporting on the client database. The boot log is written by
+         js/analytics.js line by line rather than sitting in the HTML,
+         so what it says is derived from the real data.
+         ============================================================ -->
+    <div class="window terminal">
+      <div class="window__bar">
+        <span class="window__title">CRM_ANALYTICS.SYS</span>
+      </div>
+
+      <div class="window__body">
+        <pre class="terminal__log" id="boot-log" aria-live="polite"></pre>
+
+        <!-- Summary figures, rendered as an aligned monospace table. -->
+        <pre class="terminal__table" id="summary-table"></pre>
+      </div>
+    </div>
+
+    <div class="analytics-grid">
+      <!-- Chart 1: revenue won per month, drawn on a canvas. -->
+      <div class="window">
+        <div class="window__bar">
+          <span class="window__title">REVENUE_BY_MONTH</span>
+        </div>
+        <div class="window__body">
+          <canvas id="chart-revenue" class="chart" width="640" height="260"
+                  role="img" aria-label="Revenue won per month"></canvas>
+          <!-- The same numbers in text, for anyone who cannot see the chart. -->
+          <p class="sr-only" id="chart-revenue-text"></p>
+        </div>
+      </div>
+
+      <!-- Chart 2: total deal value held at each pipeline stage. -->
+      <div class="window">
+        <div class="window__bar">
+          <span class="window__title">VALUE_BY_STAGE</span>
+        </div>
+        <div class="window__body">
+          <canvas id="chart-stage" class="chart" width="640" height="260"
+                  role="img" aria-label="Total deal value by pipeline stage"></canvas>
+          <p class="sr-only" id="chart-stage-text"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         Export / import. Given its own window because it is the only
+         place in the app that reads or writes a real file.
+         ============================================================ -->
+    <div class="window">
+      <div class="window__bar">
+        <span class="window__title">DATA_TRANSFER</span>
+      </div>
+
+      <div class="window__body stack">
+        <p style="line-height: var(--lh-base)">
+          Everything in this CRM lives in this browser only. Export writes your
+          whole client database to a file you keep; import loads one back.
+          <strong>Your password is never exported</strong> — a backup file that
+          contained it would be a genuine hazard to store or send.
+        </p>
+
+        <div class="row">
+          <button class="btn btn--primary" type="button" id="export-btn">Export JSON</button>
+
+          <input class="sr-only" type="file" id="import-input" accept="application/json,.json">
+          <label class="btn" for="import-input">Import JSON</label>
+        </div>
+
+        <p class="field__error" data-error-for="import-input"></p>
+        <p class="mono text-faint" id="transfer-status" style="font-size: var(--fs-xs)"></p>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/ui.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/analytics.js"></script>
+  <script src="js/assistant.js"></script>
+  <script src="js/atmosphere.js"></script>
+</body>
+</html>

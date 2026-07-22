@@ -23,7 +23,7 @@
  */
 
 /* Pages that require a session. Everything else is public. */
-const PROTECTED_PAGES = ['dashboard', 'clients', 'profile'];
+const PROTECTED_PAGES = ['dashboard', 'clients', 'analytics', 'profile'];
 
 const currentPage = document.documentElement.dataset.page || '';
 

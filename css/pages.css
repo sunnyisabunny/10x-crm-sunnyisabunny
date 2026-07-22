@@ -215,6 +215,67 @@
 }
 
 /* ============================================================
+   ANALYTICS — dressed as a mainframe terminal
+   ============================================================ */
+
+/* The one panel in the app that drops the chrome entirely. A phosphor
+   terminal has no moulded plastic on it, so the gloss is replaced by a
+   flat dark well and the whole thing glows instead. */
+.terminal {
+  margin-bottom: var(--sp-4);
+}
+
+.terminal .window__body {
+  background: #040A04;
+  color: var(--phosphor);
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.9),
+              inset 0 0 100px color-mix(in srgb, var(--phosphor) 8%, transparent);
+}
+
+.terminal__log,
+.terminal__table {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--phosphor);
+  text-shadow: 0 0 8px var(--phosphor);
+  /* A wide monospace table must not stretch the page. It scrolls inside its
+     own box instead, which is the only thing that keeps the layout intact on
+     a narrow screen. */
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.terminal__table {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px dashed color-mix(in srgb, var(--phosphor) 35%, transparent);
+}
+
+.analytics-grid {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  margin-bottom: var(--sp-4);
+}
+
+@media (max-width: 980px) {
+  .analytics-grid { grid-template-columns: 1fr; }
+}
+
+/* The canvas is given a fixed drawing size in the HTML and told to scale
+   down to whatever width it is given. Without max-width it would force the
+   page wider than the viewport on a phone. */
+.chart {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ============================================================
    PROFILE (P5)
    ============================================================ */
 .profile-grid {
