@@ -300,6 +300,93 @@ function buildAdvice(clients) {
   const metrics = computeMetrics(clients);
   const findings = buildFindings(clients, metrics);
 
+  /* The card about the page you are actually on comes first, then the
+     problems. See pageCard() for why he says something different per page. */
+  const advice = [pageCard(clients, metrics)];
+
+  return advice.concat(adviceFromFindings(findings, metrics));
+}
+
+/**
+ * One card about the page the user is currently looking at.
+ *
+ * WHY THIS EXISTS. Everything else he says is a diagnosis of the whole client
+ * list, which is the same on every page by definition — so he was giving an
+ * identical answer on the dashboard, the clients page, the analytics board and
+ * the profile. Correct, and useless: an assistant that ignores where you are
+ * standing is a noticeboard.
+ *
+ * So each page gets one line about itself first, drawn from the same metrics.
+ * `currentPage` comes from the data-page attribute on <html>, set in the HTML
+ * and read by app.js.
+ */
+function pageCard(clients, metrics) {
+  const openCount = metrics.open.length;
+
+  if (currentPage === 'clients') {
+    return {
+      level: 'INFO',
+      title: `${clients.length} clients, ${openCount} still open`,
+      body: `${formatMoney(metrics.openValue)} is sitting in open deals on this `
+          + `page. Filter, search and sort stack — use all three at once. Press `
+          + `/ to search, ? for every shortcut.`,
+      go: 'analytics.html',
+      goLabel: 'What needs attention?',
+    };
+  }
+
+  if (currentPage === 'analytics') {
+    return {
+      level: 'INFO',
+      title: metrics.rateIsMeaningful
+        ? `You close ${Math.round(metrics.winRate * 100)}% of what you finish`
+        : 'Not enough closed deals to judge a win rate yet',
+      body: `Average deal takes ${metrics.cycleDays} days. `
+          + `${formatMoney(metrics.openValue)} is open, which at your rate is `
+          + `worth about ${formatMoney(metrics.forecast)}. Export writes all of `
+          + `this to a file — your password never goes in it.`,
+      go: null,
+      goLabel: null,
+    };
+  }
+
+  if (currentPage === 'profile') {
+    return {
+      level: 'INFO',
+      title: 'This is your account, not your data',
+      body: `Reset wipes all ${clients.length} clients and reloads the original `
+          + `records. Your login survives it. A new password needs the old one `
+          + `first, and a photo is shrunk to 128 pixels before it is saved.`,
+      go: 'analytics.html',
+      goLabel: 'Back up first',
+    };
+  }
+
+  /* The dashboard, and anything unexpected. */
+  return {
+    level: 'INFO',
+    title: `${formatMoney(metrics.wonValue)} won, ${formatMoney(metrics.openValue)} still open`,
+    body: metrics.thisMonth >= metrics.lastMonth
+      ? `${formatMoney(metrics.thisMonth)} closed this month against `
+        + `${formatMoney(metrics.lastMonth)} last. Moving the right way.`
+      : `${formatMoney(metrics.thisMonth)} closed this month against `
+        + `${formatMoney(metrics.lastMonth)} last. Behind where you were.`,
+    go: 'analytics.html',
+    goLabel: 'See the full board',
+  };
+}
+
+/**
+ * The problems, worst first, each naming the client it is about.
+ *
+ * `metrics` is passed in rather than recomputed. It has to be: this used to be
+ * part of buildAdvice() where metrics was a local variable, and pulling it out
+ * into its own function left the reference below pointing at nothing. In a
+ * project of classic scripts sharing one global scope that is exactly the kind
+ * of mistake that survives a read-through, because the name looks like it
+ * might be global.
+ */
+function adviceFromFindings(findings, metrics) {
   const advice = findings
     /* OK findings are worth showing on the analytics board, where the point is
        a complete report. Here they would bury the one thing that matters. */
@@ -426,8 +513,22 @@ function openRonin() {
     return;
   }
 
-  if (roninAdvice.length === 0) roninAdvice = buildAdvice(roninClients());
-  renderCard(roninAdvice[roninAdviceIndex % roninAdvice.length]);
+  /*
+    Always rebuild, never reuse.
+
+    This used to only rebuild when the queue happened to be empty, which meant
+    whatever he worked out at page load was what he said for the rest of the
+    visit. That is wrong in a very ordinary situation: on a first visit the
+    client list is still being fetched from the API when he wakes up, so he
+    would decide "no clients yet", the thirty would arrive a moment later, and
+    he would go on insisting the CRM was empty until the page was reloaded.
+
+    Rebuilding costs a pass over a few dozen clients and happens only when
+    someone clicks him, so there is no reason to cache it at all.
+  */
+  roninAdvice = buildAdvice(roninClients());
+  roninAdviceIndex = 0;
+  renderCard(roninAdvice[0]);
 }
 
 function closeRonin() {
@@ -659,6 +760,11 @@ function buildRonin() {
   });
 
   document.addEventListener('crm:toast', handleRoninEvent);
+
+  /* The client list arriving from the API for the first time. Without this he
+     would have decided there was nothing to report before the data existed,
+     and gone on saying so. */
+  document.addEventListener('crm:clients-loaded', refreshBadge);
 
   return true;
 }

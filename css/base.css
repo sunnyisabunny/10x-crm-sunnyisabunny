@@ -239,6 +239,32 @@ img { max-width: 100%; display: block; }
   padding: var(--sp-6) var(--sp-4);
 }
 
+/*
+  RONIN'S RESERVED STRIP.
+
+  He is fixed to the bottom-left corner, so without this the page simply
+  scrolls underneath him and he sits on top of whatever happens to be there —
+  a client card, a chart, the danger zone.
+
+  The fix is to make sure the page is never laid out in his corner at all.
+  Note that on a WIDE screen this is already true for free: the shell is
+  centred at a maximum of 1200px, so anything wider leaves empty margin either
+  side and he stands in it. The overlap only begins once those natural margins
+  are narrower than the strip he needs, which is at:
+
+      1200px of shell  +  136px of strip on each side  =  1472px
+
+  So below that width the shell is pushed right by the difference. Above it,
+  nothing happens, because nothing needs to. Below 720px he hides entirely
+  (see components.css) and the padding goes with him, because a phone has no
+  room to give away.
+*/
+@media (min-width: 721px) and (max-width: 1471px) {
+  .shell {
+    padding-left: calc(var(--sp-4) + var(--ronin-strip));
+  }
+}
+
 .stack   { display: grid; gap: var(--sp-4); }
 .stack-2 { display: grid; gap: var(--sp-2); }
 .stack-5 { display: grid; gap: var(--sp-5); }

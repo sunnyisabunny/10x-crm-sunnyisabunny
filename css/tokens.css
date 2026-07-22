@@ -82,6 +82,12 @@
   /* ---- Layout -------------------------------------------------- */
   --tap-min: 44px;          /* accessibility floor for any control */
   --shell-max: 1200px;
+
+  /* The strip along the left edge that belongs to RONIN and nothing else.
+     His canvas is 104px, he sits 16px in from the edge, and the rest is a
+     gutter so content never touches him. Used by base.css to keep the page
+     out of his way — see the note there. */
+  --ronin-strip: 136px;
   --card-max: 420px;        /* auth card width, per P1.1 */
 }
 

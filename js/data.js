@@ -276,6 +276,28 @@ async function loadClients() {
 
   const clients = await fetchClientsFromApi();
   saveClients(clients);
+
+  /*
+    Announce that the database just filled up for the first time.
+
+    Only this branch announces, because only this branch CHANGES anything — the
+    cached path above returns data that was already there before the page
+    loaded, so nobody can have been looking at a stale version of it.
+
+    This exists because of a real bug. The assistant works out what needs
+    attention as soon as it wakes up, and on a first visit that happens while
+    this request is still in flight: it would find an empty list, conclude
+    there was nothing to report, and keep saying so even after thirty clients
+    had arrived. Announcing it lets anything that cares recalculate.
+
+    A CustomEvent rather than a direct call, for the same reason as crm:toast:
+    this file has no idea the assistant exists, and deleting the assistant
+    would leave this line harmlessly talking to nobody.
+  */
+  document.dispatchEvent(new CustomEvent('crm:clients-loaded', {
+    detail: { count: clients.length },
+  }));
+
   return clients;
 }
 
