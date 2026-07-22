@@ -243,15 +243,29 @@ function getFirstName(fullName) {
  * Client names, companies and notes come from the API and from free text the
  * user types. Dropping them straight into an HTML string would let a name like
  * <img src=x onerror=alert(1)> run as code for anyone who later views that
- * client. Setting the value as textContent and reading back innerHTML makes the
- * browser do the escaping, so < becomes &lt; and the text stays text.
+ * client — and because the client list is saved, it would run again on every
+ * future visit, not just once.
+ *
+ * All five characters are replaced explicitly. The obvious shortcut is to set
+ * the value as textContent and read innerHTML back, letting the browser escape
+ * it — but that only escapes &, < and >, because quotes are not special in
+ * ordinary text. It would leave this wide open:
+ *
+ *     <img alt="${escapeHtml(name)}">
+ *
+ * with a name of  " onerror="...  , which contains no &, < or > at all, so the
+ * shortcut returns it untouched, the quote closes the alt attribute, and the
+ * injected handler becomes real. Escaping the quotes closes that hole.
  *
  * Most rendering in this project builds elements with createElement and sets
- * textContent, which is safe automatically. This helper exists for the few
- * places that build markup as a string.
+ * textContent, which is safe automatically. This helper is for the few places
+ * that build markup as a string.
  */
 function escapeHtml(value) {
-  const holder = document.createElement('div');
-  holder.textContent = String(value);
-  return holder.innerHTML;
+  return String(value)
+    .replace(/&/g, '&amp;')   // must run first, or it double-escapes the rest
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
