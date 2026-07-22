@@ -31,6 +31,15 @@ const detailEl = document.getElementById('detail-overlay');
 /* Which client the detail window is showing, so Add Note knows its target. */
 let openClientId = null;
 
+/*
+  Which client the form is editing, or null when creating a new one.
+
+  One form serves both jobs. A separate edit form would mean a second copy of
+  six fields and five validation rules that could drift out of step with these
+  ones, so a single variable decides whether submitting creates or replaces.
+*/
+let editingClientId = null;
+
 /* ==================================================================
    Drawing the list
    ================================================================== */
@@ -113,6 +122,13 @@ function createClientCard(client) {
     statusSelect.append(option);
   });
 
+  const editButton = document.createElement('button');
+  editButton.className = 'btn btn--sm';
+  editButton.type = 'button';
+  editButton.dataset.action = 'edit';
+  editButton.textContent = 'Edit';
+  editButton.setAttribute('aria-label', `Edit ${client.name}`);
+
   const deleteButton = document.createElement('button');
   deleteButton.className = 'btn btn--danger btn--sm';
   deleteButton.type = 'button';
@@ -122,7 +138,7 @@ function createClientCard(client) {
      which one is which. */
   deleteButton.setAttribute('aria-label', `Delete ${client.name}`);
 
-  actions.append(figures, statusSelect, deleteButton);
+  actions.append(figures, statusSelect, editButton, deleteButton);
   card.append(avatar, body, actions);
 
   return card;
@@ -250,13 +266,48 @@ function populateStatusOptions() {
   });
 }
 
-function openAddClientModal() {
+/**
+ * Open the form.
+ *
+ * With no id it creates; with an id it loads that client in and replaces.
+ * The window title and button label change too, so it is never ambiguous
+ * which of the two is about to happen.
+ */
+function openClientModal(id = null) {
+  editingClientId = id;
+
+  const title = document.getElementById('add-client-title');
+  const submitButton = document.getElementById('submit-add-client');
+
+  if (id === null) {
+    title.textContent = 'ADD_CLIENT.EXE';
+    submitButton.textContent = 'Add Client';
+    addFormEl.reset();
+    addFormEl.elements.status.value = DEFAULT_STATUS;
+  } else {
+    const client = clients.find((item) => item.id === id);
+    if (!client) return;
+
+    title.textContent = 'EDIT_CLIENT.EXE';
+    submitButton.textContent = 'Save Client';
+
+    const fields = addFormEl.elements;
+    fields.name.value = client.name;
+    fields.email.value = client.email;
+    fields.phone.value = client.phone || '';
+    fields.company.value = client.company || '';
+    fields.dealValue.value = client.dealValue;
+    fields.status.value = client.status;
+  }
+
+  clearFieldErrors(addFormEl);
   overlayEl.hidden = false;
   document.getElementById('client-name').focus();
 }
 
 function closeAddClientModal() {
   overlayEl.hidden = true;
+  editingClientId = null;
   addFormEl.reset();
   clearFieldErrors(addFormEl);
 }
@@ -292,10 +343,18 @@ function validateNewClient(values) {
   return errors;
 }
 
-/** True if this email is already on the list (compared case-insensitively). */
+/**
+ * True if this email already belongs to another client.
+ *
+ * The client currently being edited is skipped. Without that, saving an edit
+ * without changing the email would report "already exists" — the record would
+ * be colliding with itself.
+ */
 function clientEmailExists(email) {
   const wanted = email.trim().toLowerCase();
-  return clients.some((client) => client.email.toLowerCase() === wanted);
+  return clients.some(
+    (client) => client.email.toLowerCase() === wanted && client.id !== editingClientId
+  );
 }
 
 async function handleAddClient(event) {
@@ -333,7 +392,9 @@ async function handleAddClient(event) {
     return;
   }
 
-  const newClient = {
+  /* The values to send and store. Called payload rather than newClient
+     because the same object is used for both creating and editing. */
+  const payload = {
     name: values.name.trim(),
     email: values.email.trim().toLowerCase(),
     phone: values.phone.trim(),
@@ -346,36 +407,63 @@ async function handleAddClient(event) {
   };
 
   /* Disable the button while the request is in flight, so an impatient double
-     click cannot create the same client twice. */
+     click cannot submit the same thing twice. */
   const submitButton = document.getElementById('submit-add-client');
   submitButton.disabled = true;
 
   try {
-    const saved = await createClientOnApi(newClient);
+    if (editingClientId === null) {
+      /* --- Creating: POST, then put the new client at the top --- */
+      const saved = await createClientOnApi(payload);
 
-    /*
-      Take the server's id, but only if it is actually free.
+      /*
+        Take the server's id, but only if it is actually free.
 
-      DummyJSON hands out the same id to every POST, because it never really
-      stores anything — the "next" id is always 30 + 1. Trusting it blindly
-      would give the second and third clients you add identical ids, and then
-      deleting one would delete all of them, since the delete filters by id.
-      Date.now() is guaranteed unique here because two adds cannot land in the
-      same millisecond.
-    */
-    const idIsFree = saved.id && !clients.some((item) => item.id === saved.id);
-    newClient.id = idIsFree ? saved.id : Date.now();
+        DummyJSON hands out the same id to every POST, because it never really
+        stores anything — the "next" id is always 30 + 1. Trusting it blindly
+        would give the second and third clients you add identical ids, and then
+        deleting one would delete all of them, since the delete filters by id.
+        Date.now() is guaranteed unique here because two adds cannot land in
+        the same millisecond.
+      */
+      const idIsFree = saved.id && !clients.some((item) => item.id === saved.id);
+      payload.id = idIsFree ? saved.id : Date.now();
 
-    /* unshift, not push: newest client appears at the top of the list. */
-    clients.unshift(newClient);
-    saveClients(clients);
-    refresh();
+      /* unshift, not push: newest client appears at the top of the list. */
+      clients.unshift(payload);
+      saveClients(clients);
+      refresh();
 
-    closeAddClientModal();
-    showToast('Client added ✓', 'success');
+      closeAddClientModal();
+      showToast('Client added ✓', 'success');
+    } else {
+      /* --- Editing: PUT, then replace the fields in place --- */
+      await updateClientOnApi(editingClientId, payload);
+
+      const client = clients.find((item) => item.id === editingClientId);
+
+      /*
+        Overwrite only the editable fields. id, notes and createdAt are
+        deliberately left alone: rewriting createdAt would move the client to
+        the top of "Newest first" every time it was edited, and rewriting
+        notes would wipe the entire conversation history.
+      */
+      client.name = payload.name;
+      client.email = payload.email;
+      client.phone = payload.phone;
+      client.company = payload.company;
+      client.status = payload.status;
+      client.dealValue = payload.dealValue;
+
+      saveClients(clients);
+      refresh();
+
+      closeAddClientModal();
+      showToast('Client updated ✓', 'success');
+    }
   } catch (error) {
-    console.error('Could not add client.', error);
-    showToast('Could not add client. Check your connection and try again.', 'error');
+    console.error('Could not save client.', error);
+    showToast('Could not save client. Check your connection and try again.', 'error');
   } finally {
     /* finally runs whether the request succeeded or threw, so the button can
        never be left permanently disabled. */
@@ -657,6 +745,11 @@ function setUpListEvents() {
       return;
     }
 
+    if (control?.dataset.action === 'edit') {
+      openClientModal(id);
+      return;
+    }
+
     /* Clicking a control must not also open the details window, so anything
        inside a [data-action] element stops here. Everything else on the card
        counts as "show me this client". */
@@ -681,7 +774,7 @@ function setUpListEvents() {
 
 function setUpModalEvents() {
   document.getElementById('open-add-client')
-    .addEventListener('click', openAddClientModal);
+    .addEventListener('click', () => openClientModal(null));
 
   document.querySelectorAll('[data-close-modal]').forEach((button) => {
     button.addEventListener('click', closeAddClientModal);
@@ -721,8 +814,121 @@ function setUpEscapeKey() {
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
 
-    if (!detailEl.hidden) closeDetail();
+    if (!shortcutsEl.hidden) closeShortcuts();
+    else if (!detailEl.hidden) closeDetail();
     else if (!overlayEl.hidden) closeAddClientModal();
+  });
+}
+
+/* ==================================================================
+   Keyboard shortcuts and the easter egg (bonus features)
+   ================================================================== */
+
+const shortcutsEl = document.getElementById('shortcuts-overlay');
+
+function closeShortcuts() {
+  shortcutsEl.hidden = true;
+}
+
+/** True when the user is typing, so shortcuts must not steal the keystroke. */
+function isTyping(target) {
+  return target.tagName === 'INPUT'
+      || target.tagName === 'TEXTAREA'
+      || target.tagName === 'SELECT'
+      || target.isContentEditable;
+}
+
+/** True when any window is open — shortcuts should not fire behind a dialog. */
+function aModalIsOpen() {
+  return !overlayEl.hidden || !detailEl.hidden || !shortcutsEl.hidden;
+}
+
+/**
+ * Single-key shortcuts.
+ *
+ * Two guards make this safe. Typing "n" into the search box must type an "n",
+ * not open a window, so anything typed into a field is ignored. And a shortcut
+ * must not act on the list hidden behind an open dialog.
+ *
+ * event.key is the character produced, which respects the user's keyboard
+ * layout, unlike event.keyCode which describes a physical key position.
+ */
+function setUpShortcuts() {
+  document.addEventListener('keydown', (event) => {
+    if (isTyping(event.target)) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (aModalIsOpen() && event.key !== '?') return;
+
+    /* "/" focuses search — the convention on most sites with a search box. */
+    if (event.key === '/') {
+      event.preventDefault();      // stop Firefox opening its quick-find bar
+      document.getElementById('search').focus();
+      return;
+    }
+
+    if (event.key === 'n' || event.key === 'N') {
+      openClientModal(null);
+      return;
+    }
+
+    if (event.key === '?') {
+      shortcutsEl.hidden = !shortcutsEl.hidden;
+      return;
+    }
+
+    /* 1-5 pick a filter chip, in the order they appear on screen. */
+    const position = Number(event.key);
+    if (position >= 1 && position <= 5) {
+      const chips = document.querySelectorAll('#filter-chips .chip');
+      if (chips[position - 1]) chips[position - 1].click();
+    }
+  });
+
+  document.querySelectorAll('[data-close-shortcuts]').forEach((button) => {
+    button.addEventListener('click', closeShortcuts);
+  });
+
+  shortcutsEl.addEventListener('click', (event) => {
+    if (event.target === shortcutsEl) closeShortcuts();
+  });
+}
+
+/**
+ * The Konami code easter egg: up up down down left right left right B A.
+ *
+ * Entering it switches on CRT MODE, turning the faint background scanlines
+ * into a full phosphor monitor with flicker and glow.
+ *
+ * How it works: every key press is appended to a list, the list is trimmed to
+ * the length of the code, and the two are compared. Trimming as we go means
+ * there is no reset logic and no index to keep in step — the list simply holds
+ * the last ten keys at all times.
+ */
+const KONAMI_CODE = [
+  'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
+  'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight',
+  'b', 'a',
+];
+
+function setUpEasterEgg() {
+  let pressed = [];
+
+  document.addEventListener('keydown', (event) => {
+    if (isTyping(event.target)) return;
+
+    /* Arrow keys keep their capitals; letters are lowercased so Shift or caps
+       lock does not break the sequence. */
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+
+    pressed.push(key);
+    pressed = pressed.slice(-KONAMI_CODE.length);
+
+    if (pressed.join(',') !== KONAMI_CODE.join(',')) return;
+
+    document.body.classList.toggle('crt-mode');
+    const on = document.body.classList.contains('crt-mode');
+    showToast(on ? 'CRT MODE ENGAGED' : 'CRT MODE OFF', 'info');
+    pressed = [];
   });
 }
 
@@ -744,5 +950,7 @@ if (!isRedirecting) {
   setUpDetailEvents();
   setUpToolbarEvents();
   setUpEscapeKey();
+  setUpShortcuts();
+  setUpEasterEgg();
   initClients();
 }
