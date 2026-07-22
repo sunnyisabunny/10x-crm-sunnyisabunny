@@ -217,9 +217,20 @@ function setUpEasterEgg() {
 
     if (pressed.join(',') !== KONAMI_CODE.join(',')) return;
 
-    document.body.classList.toggle('crt-mode');
-    const on = document.body.classList.contains('crt-mode');
-    showToast(on ? 'CRT MODE ENGAGED' : 'CRT MODE OFF', 'info');
+    /* One code, two theme-appropriate surprises. The dark theme is a retro
+       machine, so its cheat is a CRT tube. The light theme is a haunting, so
+       its cheat is the haunting coming through in force. Each theme gets an
+       intensification of what it already is, rather than the same effect
+       pasted onto both. */
+    if (document.documentElement.dataset.theme === 'light') {
+      const on = document.body.classList.toggle('breach-mode');
+      if (typeof setHauntBreach === 'function') setHauntBreach(on);
+      showToast(on ? 'THE VEIL IS THIN' : 'IT PASSES', 'info');
+    } else {
+      document.body.classList.toggle('crt-mode');
+      const on = document.body.classList.contains('crt-mode');
+      showToast(on ? 'CRT MODE ENGAGED' : 'CRT MODE OFF', 'info');
+    }
     pressed = [];
   });
 }

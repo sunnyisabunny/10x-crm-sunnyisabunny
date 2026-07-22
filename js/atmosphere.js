@@ -103,7 +103,7 @@ function syncAtmosphere() {
      there fossilised under the fog. */
   atmosCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-  atmosCanvas.style.opacity = String(atmosTheme === 'light' ? HAUNT_OPACITY : RAIN_OPACITY);
+  atmosCanvas.style.opacity = String(atmosTheme === 'light' ? lightOpacity() : RAIN_OPACITY);
 
   if (atmosTheme === 'light') {
     ensureApparitionSheet();
@@ -308,11 +308,12 @@ function drawRain() {
    slow layer, on their own clock, and nothing is ever shown making them.
    ============================================================ */
 
-/* How faint the whole layer is. Lower than the rain's, because this sits
-   under body text on a pale background where there is far less contrast to
-   spare, and because a thing you can only half-see is worse than a thing you
-   can see. */
-const HAUNT_OPACITY = 0.5;
+/* How faint the whole layer is. Raised from 0.5: at that level the figures
+   were nearly invisible against the pale fog, which defeated the point of
+   giving them real textures. The interface still has to stay readable over
+   it, but the figures are placed clear of the content now (see hauntFreeSpot),
+   so the layer can afford to be more present than it was. */
+const HAUNT_OPACITY = 0.72;
 
 /*
   THE APPARITION ATLAS.
@@ -343,14 +344,15 @@ const APPARITION_PRINT_LAST = 23;
    enough that the per-frame gradient work stays trivial. */
 const FOG_COUNT = 5;
 
-/* Seconds an apparition takes from first surfacing to gone. */
-const HAUNT_LIFE = 11;
+/* Seconds an apparition takes from first surfacing to gone. Shortened along
+   with the gap below so the whole cycle turns over faster. */
+const HAUNT_LIFE = 8;
 
-/* Seconds of empty fog between apparitions, minimum and extra-random.
-   Deliberately long. Dread is a function of waiting: something that appears
-   every four seconds is a screensaver, not a haunting. */
-const HAUNT_GAP_MIN = 14;
-const HAUNT_GAP_VAR = 22;
+/* Seconds of empty fog between apparitions, minimum and extra-random. Cut down
+   so figures arrive noticeably more often — the room is more active than it
+   was, while a little irregularity is kept so it never pulses in time. */
+const HAUNT_GAP_MIN = 4;
+const HAUNT_GAP_VAR = 7;
 
 /* How far a slice can be pushed sideways, as a fraction of the figure's own
    width. Rendered across a range and looked at before it was chosen: below
@@ -379,18 +381,34 @@ const HAUNT_VAR_H = 0.16;
    They simply fade up on empty glass, sit there, and fade out — which is
    more unpleasant than showing the cause, because there isn't one. They run
    on their own clock and the two layers never coordinate. */
-const HAUNT_PRINT_LIFE = 26;
-const HAUNT_PRINT_GAP_MIN = 14;
-const HAUNT_PRINT_GAP_VAR = 22;
+const HAUNT_PRINT_LIFE = 18;
+const HAUNT_PRINT_GAP_MIN = 6;
+const HAUNT_PRINT_GAP_VAR = 10;
 
 /* Prints are drawn at a fraction of viewport height, and never warped: a mark
    on the glass is on the glass, and wobbling it would say it was behind. */
 const HAUNT_PRINT_MIN_H = 0.09;
 const HAUNT_PRINT_VAR_H = 0.06;
 
-/* They sit at a lower peak than the figures do, so a print never competes
-   with body text sitting on top of it. */
-const HAUNT_PRINT_PEAK = 0.62;
+/* Slightly below the figures' peak, but raised along with everything else on
+   this pass so the blood actually reads as blood rather than a grey smudge. */
+const HAUNT_PRINT_PEAK = 0.8;
+
+/* BREACH — the light theme's easter egg.
+ *
+ * Where the dark theme's Konami code flips on a retro CRT, the light theme's
+ * flips THIS: the haunting stops being ambient and comes through in force.
+ * The canvas brightens, figures arrive almost on top of one another, and the
+ * page darkens around them (the CSS half, in components.css). It is the same
+ * shape of joke as CRT mode — an intensification of whatever that theme's
+ * atmosphere already is — which is why the two share one trigger and split by
+ * theme rather than being two separate codes to discover.
+ *
+ * app.js toggles it through setHauntBreach(); the flag then shortens every gap
+ * and lifts the canvas opacity. */
+let hauntBreach = false;
+const BREACH_OPACITY = 0.95;
+const BREACH_GAP_SCALE = 0.28;   // gaps shrink to a bit over a quarter
 
 let apparitionSheet = null;
 let apparitionReady = false;
@@ -436,13 +454,41 @@ function resetHaunt() {
   haunt = null;
   hauntPrint = null;
   hauntClock = 0;
-  hauntNextAt = 3;        // a short first wait, so the theme does not look inert
-  hauntPrintNextAt = 7;   // the first print arrives early, and unannounced
+  hauntNextAt = 1.5;      // the first figure arrives almost at once now
+  hauntPrintNextAt = 4;   // the first print not long after, and unannounced
 }
 
 /** True while the user is being asked to read or decide something. */
 function hauntBlocked() {
   return document.querySelector('.overlay:not([hidden])') !== null;
+}
+
+/** The light canvas opacity, breach or calm. */
+function lightOpacity() {
+  return hauntBreach ? BREACH_OPACITY : HAUNT_OPACITY;
+}
+
+/** How much every gap is scaled — everything comes faster during a breach. */
+function gapScale() {
+  return hauntBreach ? BREACH_GAP_SCALE : 1;
+}
+
+/**
+ * Toggle the breach. Called by the Konami handler in app.js when the theme is
+ * light. A shared global, guarded by typeof on the calling side, exactly like
+ * syncAtmosphere and isRedirecting.
+ */
+function setHauntBreach(on) {
+  hauntBreach = !!on;
+  if (atmosCanvas && atmosTheme === 'light') {
+    atmosCanvas.style.opacity = String(lightOpacity());
+    /* Bring the next arrivals forward at once, so turning it on has an
+       immediate answer rather than waiting out the gap already scheduled. */
+    if (on) {
+      hauntNextAt = Math.min(hauntNextAt, hauntClock + 0.5);
+      hauntPrintNextAt = Math.min(hauntPrintNextAt, hauntClock + 1.5);
+    }
+  }
 }
 
 /**
@@ -455,48 +501,33 @@ function hauntBlocked() {
  * under them. Most apparitions were therefore spending their whole life behind
  * a client card, which is a lot of machinery for something nobody can see.
  *
- * So the actual content box is measured and the figure is put in the gutter
- * beside it. `.shell` is the wrapper every page lays its content in, so one
- * lookup answers the question on all six. Measured at spawn only — never per
- * frame — because reading a layout box forces the browser to settle the layout
- * first, which is exactly the kind of cost this file has been cleared of.
+ * Placement is random across the whole viewport now, rather than confined to
+ * the gutters beside the content. That is a deliberate change: the figures are
+ * brighter and arrive more often, and every one of them still passes BEHIND a
+ * frosted panel, where the panel's own backdrop-blur softens it — so a figure
+ * that lands over the content column is not a legibility problem, it is the
+ * intended "seen through the glass" effect. What is still avoided is only the
+ * two places a figure would genuinely be in the way: the taskbar strip at the
+ * very top, and the bottom-left corner where the assistant stands.
+ *
+ * Nothing here is measured off the layout, so it costs nothing at spawn.
  */
 function hauntFreeSpot(w, h) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  let boxLeft = vw * 0.18;
-  let boxRight = vw * 0.82;
+  /* Anywhere from a little off the left edge to a little off the right, so a
+     figure can sit fully on screen or half-enter from either side. */
+  const x = -w * 0.2 + Math.random() * (vw - w * 0.6);
 
-  const shell = document.querySelector('.shell');
-  if (shell) {
-    const rect = shell.getBoundingClientRect();
-    if (rect.width > 0) { boxLeft = rect.left; boxRight = rect.right; }
-  }
-
-  /* Only offer a gutter that can actually hold the figure. A 40px strip is
-     not somewhere a person stands. */
-  const gutters = [];
-  if (boxLeft >= w * 0.75) gutters.push([-w * 0.12, boxLeft - w * 0.88]);
-  if (vw - boxRight >= w * 0.75) gutters.push([boxRight - w * 0.12, vw - w * 0.88]);
-
-  let x;
-  if (gutters.length) {
-    const [lo, hi] = gutters[Math.floor(Math.random() * gutters.length)];
-    x = lo + Math.random() * Math.max(0, hi - lo);
-  } else {
-    /* Nothing fits beside the content — a narrow window. Hang the figure off
-       the very edge so at least half of it is in the open. */
-    x = Math.random() < 0.5 ? -w * 0.42 : vw - w * 0.58;
-  }
-
-  /* Clear of the taskbar at the top, and clear of the bottom-left corner where
-     the assistant stands. */
+  /* Clear of the taskbar at the top. */
   const top = vh * 0.08;
-  const bottom = Math.max(top, vh * 0.92 - h);
+  const bottom = Math.max(top, vh * 0.9 - h);
   let y = top + Math.random() * (bottom - top);
 
-  const nearAssistant = x < 220 && y + h > vh - 200;
+  /* Keep out of the assistant's bottom-left corner. If a random spot lands
+     there, lift it just clear rather than re-rolling — one nudge, no loop. */
+  const nearAssistant = x < 240 && y + h > vh - 200;
   if (nearAssistant) y = Math.max(top, vh - 200 - h);
 
   return { x, y };
@@ -575,9 +606,9 @@ function spawnHandprint() {
  * unease actually lives.
  */
 function hauntPresence(p) {
-  if (p < 0.30) return (p / 0.30) * 0.55;                     // rising
-  if (p < 0.55) return 0.55;                                  // holding
-  if (p < 0.70) return 0.55 + ((p - 0.55) / 0.15) * 0.45;     // pressing
+  if (p < 0.24) return (p / 0.24) * 0.78;                     // rising
+  if (p < 0.55) return 0.78;                                  // holding
+  if (p < 0.70) return 0.78 + ((p - 0.55) / 0.15) * 0.22;     // pressing
   return Math.max(0, 1 - (p - 0.70) / 0.30);                  // withdrawing
 }
 
@@ -729,7 +760,7 @@ function drawHaunt(dt) {
       const p = (hauntClock - haunt.born) / HAUNT_LIFE;
       if (p >= 1) {
         haunt = null;
-        hauntNextAt = hauntClock + HAUNT_GAP_MIN + Math.random() * HAUNT_GAP_VAR;
+        hauntNextAt = hauntClock + (HAUNT_GAP_MIN + Math.random() * HAUNT_GAP_VAR) * gapScale();
       } else {
         drawApparition(hauntPresence(p));
       }
@@ -742,7 +773,8 @@ function drawHaunt(dt) {
       const p = (hauntClock - hauntPrint.born) / HAUNT_PRINT_LIFE;
       if (p >= 1) {
         hauntPrint = null;
-        hauntPrintNextAt = hauntClock + HAUNT_PRINT_GAP_MIN + Math.random() * HAUNT_PRINT_GAP_VAR;
+        hauntPrintNextAt = hauntClock
+          + (HAUNT_PRINT_GAP_MIN + Math.random() * HAUNT_PRINT_GAP_VAR) * gapScale();
       } else {
         drawHandprint(printPresence(p));
       }
