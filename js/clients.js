@@ -830,13 +830,11 @@ function closeShortcuts() {
   shortcutsEl.hidden = true;
 }
 
-/** True when the user is typing, so shortcuts must not steal the keystroke. */
-function isTyping(target) {
-  return target.tagName === 'INPUT'
-      || target.tagName === 'TEXTAREA'
-      || target.tagName === 'SELECT'
-      || target.isContentEditable;
-}
+/* isTyping() now lives in app.js. Two separate features needed it — these
+   shortcuts and the Konami easter egg — and once the easter egg moved to
+   app.js so it would work on every page, keeping a second copy here would
+   have been exactly the duplication P5.6 forbids. app.js loads before this
+   file, so the function is already defined by the time anything calls it. */
 
 /** True when any window is open — shortcuts should not fire behind a dialog. */
 function aModalIsOpen() {
@@ -893,44 +891,11 @@ function setUpShortcuts() {
   });
 }
 
-/**
- * The Konami code easter egg: up up down down left right left right B A.
- *
- * Entering it switches on CRT MODE, turning the faint background scanlines
- * into a full phosphor monitor with flicker and glow.
- *
- * How it works: every key press is appended to a list, the list is trimmed to
- * the length of the code, and the two are compared. Trimming as we go means
- * there is no reset logic and no index to keep in step — the list simply holds
- * the last ten keys at all times.
- */
-const KONAMI_CODE = [
-  'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
-  'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight',
-  'b', 'a',
-];
-
-function setUpEasterEgg() {
-  let pressed = [];
-
-  document.addEventListener('keydown', (event) => {
-    if (isTyping(event.target)) return;
-
-    /* Arrow keys keep their capitals; letters are lowercased so Shift or caps
-       lock does not break the sequence. */
-    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-
-    pressed.push(key);
-    pressed = pressed.slice(-KONAMI_CODE.length);
-
-    if (pressed.join(',') !== KONAMI_CODE.join(',')) return;
-
-    document.body.classList.toggle('crt-mode');
-    const on = document.body.classList.contains('crt-mode');
-    showToast(on ? 'CRT MODE ENGAGED' : 'CRT MODE OFF', 'info');
-    pressed = [];
-  });
-}
+/* The Konami easter egg used to be defined here, which was a mistake: it was
+   only ever wired up on this one page, so entering the code anywhere else in
+   the app did nothing and it looked broken. It now lives in app.js alongside
+   the guard, the theme and the navigation — the other three things that have
+   to behave identically on every page. */
 
 /*
   Do nothing at all if the auth guard is already redirecting.
@@ -951,6 +916,5 @@ if (!isRedirecting) {
   setUpToolbarEvents();
   setUpEscapeKey();
   setUpShortcuts();
-  setUpEasterEgg();
   initClients();
 }
